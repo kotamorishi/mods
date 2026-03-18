@@ -5,6 +5,31 @@ struct MarkdownWebView: NSViewRepresentable {
     let markdown: String
     let zoomLevel: Double
 
+    // MARK: - Shared WKWebViewConfiguration (created once, reused)
+
+    nonisolated(unsafe) private static var sharedConfig: WKWebViewConfiguration?
+
+    /// Create a WKWebViewConfiguration with highlight.js pre-injected as a user script.
+    /// This avoids re-parsing 127KB of JS on every HTML load.
+    private static func configuration() -> WKWebViewConfiguration {
+        if let config = sharedConfig { return config }
+        let config = WKWebViewConfiguration()
+        let controller = WKUserContentController()
+
+        // Inject highlight.js once — available for all subsequent page loads
+        let highlightJS = cachedResource("highlight.min", type: "js")
+        if !highlightJS.isEmpty {
+            let script = WKUserScript(source: highlightJS, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
+            controller.addUserScript(script)
+        }
+
+        config.userContentController = controller
+        sharedConfig = config
+        return config
+    }
+
+    // MARK: - CSS (cached)
+
     nonisolated(unsafe) private static var cachedStyleBlock: String?
 
     private static func styleBlock() -> String {
@@ -23,7 +48,11 @@ struct MarkdownWebView: NSViewRepresentable {
         return block
     }
 
+    // MARK: - Coordinator
+
     class Coordinator: NSObject, WKNavigationDelegate {
+        var currentMarkdown: String = ""
+
         @MainActor
         func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction) async -> WKNavigationActionPolicy {
             if navigationAction.navigationType == .linkActivated, let url = navigationAction.request.url {
@@ -37,9 +66,10 @@ struct MarkdownWebView: NSViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     func makeNSView(context: Context) -> WKWebView {
-        let webView = WKWebView()
+        let webView = WKWebView(frame: .zero, configuration: Self.configuration())
         webView.autoresizingMask = [.width, .height]
         webView.navigationDelegate = context.coordinator
+        context.coordinator.currentMarkdown = markdown
         let html = buildHTML()
         webView.loadHTMLString(html, baseURL: nil)
         return webView
@@ -47,12 +77,19 @@ struct MarkdownWebView: NSViewRepresentable {
 
     func updateNSView(_ webView: WKWebView, context: Context) {
         webView.pageZoom = zoomLevel
+
+        // Reload content if markdown changed
+        if context.coordinator.currentMarkdown != markdown {
+            context.coordinator.currentMarkdown = markdown
+            let html = buildHTML()
+            webView.loadHTMLString(html, baseURL: nil)
+        }
     }
 
-    nonisolated(unsafe) private static var cachedBaseHead: String?
-    nonisolated(unsafe) private static var cachedMermaidScript: String?
-    nonisolated(unsafe) private static var cachedKatexHead: String?
+    // MARK: - HTML Builder
 
+    /// The footer script that runs after content is loaded.
+    /// highlight.js is already injected via WKUserScript, so hljs is available globally.
     private static let footerScript = """
     <script>
     if (typeof mermaid !== 'undefined') {
@@ -90,7 +127,11 @@ struct MarkdownWebView: NSViewRepresentable {
     </script>
     """
 
-    /// Base <head> with CSS + highlight.js (always needed). Built once.
+    nonisolated(unsafe) private static var cachedBaseHead: String?
+    nonisolated(unsafe) private static var cachedMermaidScript: String?
+    nonisolated(unsafe) private static var cachedKatexHead: String?
+
+    /// Base <head> with CSS only (highlight.js is now a WKUserScript). Built once.
     private static func baseHead() -> String {
         if let cached = cachedBaseHead { return cached }
         let head = """
@@ -99,7 +140,6 @@ struct MarkdownWebView: NSViewRepresentable {
         <head>
         <meta charset="utf-8">
         \(styleBlock())
-        <script>\(cachedResource("highlight.min", type: "js"))</script>
         """
         cachedBaseHead = head
         return head
@@ -138,8 +178,8 @@ struct MarkdownWebView: NSViewRepresentable {
         return html
     }
 
-    /// Check for inline math pattern: $...$ where content is non-empty and doesn't start/end with space.
-    /// Avoids false positives like "costs $5" (no closing $) or "$ PATH $" (spaces).
+    // MARK: - Helpers
+
     private static let inlineMathRegex = try! NSRegularExpression(pattern: "\\$[^\\s$].*?[^\\s$]\\$|\\$[^\\s$]\\$", options: [])
 
     private static func containsInlineMath(_ html: String) -> Bool {
