@@ -5,23 +5,25 @@ struct MarkdownWebView: NSViewRepresentable {
     let markdown: String
     let zoomLevel: Double
 
-    // MARK: - Shared WKWebViewConfiguration (created once, reused)
+    // MARK: - Shared WKWebViewConfiguration (created once)
 
     nonisolated(unsafe) private static var sharedConfig: WKWebViewConfiguration?
 
-    /// Create a WKWebViewConfiguration with highlight.js pre-injected as a user script.
-    /// This avoids re-parsing 127KB of JS on every HTML load.
     private static func configuration() -> WKWebViewConfiguration {
         if let config = sharedConfig { return config }
         let config = WKWebViewConfiguration()
         let controller = WKUserContentController()
 
-        // Inject highlight.js once — available for all subsequent page loads
+        // Inject highlight.js once — never re-parsed on subsequent loads
         let highlightJS = cachedResource("highlight.min", type: "js")
         if !highlightJS.isEmpty {
             let script = WKUserScript(source: highlightJS, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
             controller.addUserScript(script)
         }
+
+        // Inject the post-processing function once
+        let postProcess = WKUserScript(source: Self.postProcessFunction, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
+        controller.addUserScript(postProcess)
 
         config.userContentController = controller
         sharedConfig = config
@@ -52,6 +54,7 @@ struct MarkdownWebView: NSViewRepresentable {
 
     class Coordinator: NSObject, WKNavigationDelegate {
         var currentMarkdown: String = ""
+        var isInitialLoadDone = false
 
         @MainActor
         func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction) async -> WKNavigationActionPolicy {
@@ -70,112 +73,163 @@ struct MarkdownWebView: NSViewRepresentable {
         webView.autoresizingMask = [.width, .height]
         webView.navigationDelegate = context.coordinator
         context.coordinator.currentMarkdown = markdown
-        let html = buildHTML()
+
+        // First load: full HTML page with CSS shell + content
+        let html = buildShellHTML()
         webView.loadHTMLString(html, baseURL: nil)
+        context.coordinator.isInitialLoadDone = true
         return webView
     }
 
     func updateNSView(_ webView: WKWebView, context: Context) {
         webView.pageZoom = zoomLevel
 
-        // Reload content if markdown changed
         if context.coordinator.currentMarkdown != markdown {
             context.coordinator.currentMarkdown = markdown
-            let html = buildHTML()
-            webView.loadHTMLString(html, baseURL: nil)
+
+            if context.coordinator.isInitialLoadDone {
+                // Fast path: swap content via JS instead of reloading the page
+                updateContentViaJS(webView: webView)
+            } else {
+                let html = buildShellHTML()
+                webView.loadHTMLString(html, baseURL: nil)
+                context.coordinator.isInitialLoadDone = true
+            }
         }
     }
 
     // MARK: - HTML Builder
 
-    /// The footer script that runs after content is loaded.
-    /// highlight.js is already injected via WKUserScript, so hljs is available globally.
-    private static let footerScript = """
-    <script>
-    if (typeof mermaid !== 'undefined') {
-        mermaid.initialize({ startOnLoad: false, theme: window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default' });
-        var mermaidBlocks = document.querySelectorAll('pre code.language-mermaid');
-        mermaidBlocks.forEach(function(block) {
-            var pre = block.parentElement;
-            var div = document.createElement('div');
-            div.className = 'mermaid';
-            div.textContent = block.textContent;
-            pre.replaceWith(div);
-        });
-        if (mermaidBlocks.length > 0) { mermaid.run(); }
-    }
-    document.querySelectorAll('pre code').forEach(function(block) {
-        if (!block.classList.contains('language-math')) { hljs.highlightElement(block); }
-    });
-    document.querySelectorAll('input[type="checkbox"]').forEach(function(cb) { cb.disabled = true; });
-    if (typeof katex !== 'undefined') {
-        document.querySelectorAll('pre code.language-math').forEach(function(block) {
-            var pre = block.parentElement;
-            var div = document.createElement('div');
-            div.className = 'math-block';
-            try { katex.render(block.textContent, div, { displayMode: true, throwOnError: false }); }
-            catch(e) { div.textContent = block.textContent; }
-            pre.replaceWith(div);
-        });
-        if (typeof renderMathInElement !== 'undefined') {
-            renderMathInElement(document.getElementById('content'), {
-                delimiters: [{left: '$$', right: '$$', display: true}, {left: '$', right: '$', display: false}],
-                throwOnError: false
+    /// Post-processing function injected once via WKUserScript.
+    /// Called after each content update to apply highlighting, mermaid, katex, etc.
+    private static let postProcessFunction = """
+    window.__modsPostProcess = function() {
+        // Mermaid
+        if (typeof mermaid !== 'undefined') {
+            mermaid.initialize({ startOnLoad: false, theme: window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default' });
+            var mermaidBlocks = document.querySelectorAll('pre code.language-mermaid');
+            mermaidBlocks.forEach(function(block) {
+                var pre = block.parentElement;
+                var div = document.createElement('div');
+                div.className = 'mermaid';
+                div.textContent = block.textContent;
+                pre.replaceWith(div);
             });
+            if (mermaidBlocks.length > 0) { mermaid.run(); }
         }
-    }
-    </script>
+        // Syntax highlighting
+        document.querySelectorAll('pre code').forEach(function(block) {
+            if (!block.classList.contains('language-math')) { hljs.highlightElement(block); }
+        });
+        // Checkboxes
+        document.querySelectorAll('input[type="checkbox"]').forEach(function(cb) { cb.disabled = true; });
+        // Math
+        if (typeof katex !== 'undefined') {
+            document.querySelectorAll('pre code.language-math').forEach(function(block) {
+                var pre = block.parentElement;
+                var div = document.createElement('div');
+                div.className = 'math-block';
+                try { katex.render(block.textContent, div, { displayMode: true, throwOnError: false }); }
+                catch(e) { div.textContent = block.textContent; }
+                pre.replaceWith(div);
+            });
+            if (typeof renderMathInElement !== 'undefined') {
+                renderMathInElement(document.getElementById('content'), {
+                    delimiters: [{left: '$$', right: '$$', display: true}, {left: '$', right: '$', display: false}],
+                    throwOnError: false
+                });
+            }
+        }
+    };
+    // Run on initial load
+    window.__modsPostProcess();
     """
 
-    nonisolated(unsafe) private static var cachedBaseHead: String?
-    nonisolated(unsafe) private static var cachedMermaidScript: String?
-    nonisolated(unsafe) private static var cachedKatexHead: String?
+    nonisolated(unsafe) private static var cachedShellHead: String?
 
-    /// Base <head> with CSS only (highlight.js is now a WKUserScript). Built once.
-    private static func baseHead() -> String {
-        if let cached = cachedBaseHead { return cached }
+    /// Shell page head: CSS only (no JS in HTML — all JS via WKUserScript or evaluateJavaScript)
+    private static func shellHead() -> String {
+        if let cached = cachedShellHead { return cached }
         let head = """
         <!DOCTYPE html>
         <html>
         <head>
         <meta charset="utf-8">
         \(styleBlock())
+        </head>
+        <body>
+        <div id="content">
         """
-        cachedBaseHead = head
+        cachedShellHead = head
         return head
     }
 
-    private static func mermaidScript() -> String {
-        if let cached = cachedMermaidScript { return cached }
-        let s = "<script>\(cachedResource("mermaid.min", type: "js"))</script>\n"
-        cachedMermaidScript = s
-        return s
-    }
-
-    private static func katexHead() -> String {
-        if let cached = cachedKatexHead { return cached }
-        let s = """
-        <style>\(cachedResource("katex.min", type: "css"))</style>
-        <script>\(cachedResource("katex.min", type: "js"))</script>
-        <script>\(cachedResource("katex-auto-render.min", type: "js"))</script>
-        """
-        cachedKatexHead = s
-        return s
-    }
-
-    private func buildHTML() -> String {
+    /// Build the initial full HTML page.
+    private func buildShellHTML() -> String {
         let bodyHTML = MarkdownRenderer.renderToHTML(markdown)
 
         let needsMermaid = bodyHTML.contains("language-mermaid")
         let needsMath = bodyHTML.contains("language-math") || bodyHTML.contains("$$") || Self.containsInlineMath(bodyHTML)
 
-        var html = Self.baseHead()
-        if needsMath { html += Self.katexHead() }
-        if needsMermaid { html += Self.mermaidScript() }
-        html += "</head>\n<body>\n<div id=\"content\">\(bodyHTML)</div>\n"
-        html += Self.footerScript
-        html += "</body>\n</html>"
-        return html
+        // Inject mermaid/katex as inline scripts only when needed
+        var conditionalScripts = ""
+        if needsMermaid {
+            conditionalScripts += "<script>\(Self.cachedResource("mermaid.min", type: "js"))</script>\n"
+        }
+        if needsMath {
+            conditionalScripts += "<style>\(Self.cachedResource("katex.min", type: "css"))</style>\n"
+            conditionalScripts += "<script>\(Self.cachedResource("katex.min", type: "js"))</script>\n"
+            conditionalScripts += "<script>\(Self.cachedResource("katex-auto-render.min", type: "js"))</script>\n"
+        }
+
+        return Self.shellHead() + bodyHTML + "</div>\n" + conditionalScripts + "</body>\n</html>"
+    }
+
+    /// Fast content update: swap #content innerHTML via JS and re-run post-processing.
+    private func updateContentViaJS(webView: WKWebView) {
+        let bodyHTML = MarkdownRenderer.renderToHTML(markdown)
+
+        let needsMermaid = bodyHTML.contains("language-mermaid")
+        let needsMath = bodyHTML.contains("language-math") || bodyHTML.contains("$$") || Self.containsInlineMath(bodyHTML)
+
+        // Safely encode HTML as a JSON string for JavaScript
+        let jsonData = try! JSONSerialization.data(withJSONObject: [bodyHTML])
+        let jsonArray = String(data: jsonData, encoding: .utf8)!
+        let jsonString = String(jsonArray.dropFirst().dropLast())
+
+        var js = "document.getElementById('content').innerHTML = \(jsonString);\n"
+
+        // Dynamically inject mermaid/katex if needed and not yet loaded
+        if needsMermaid {
+            js += """
+            if (typeof mermaid === 'undefined') {
+                var s = document.createElement('script');
+                s.textContent = \(Self.jsonEncode(Self.cachedResource("mermaid.min", type: "js")));
+                document.head.appendChild(s);
+            }
+
+            """
+        }
+        if needsMath {
+            js += """
+            if (typeof katex === 'undefined') {
+                var ks = document.createElement('style');
+                ks.textContent = \(Self.jsonEncode(Self.cachedResource("katex.min", type: "css")));
+                document.head.appendChild(ks);
+                var k1 = document.createElement('script');
+                k1.textContent = \(Self.jsonEncode(Self.cachedResource("katex.min", type: "js")));
+                document.head.appendChild(k1);
+                var k2 = document.createElement('script');
+                k2.textContent = \(Self.jsonEncode(Self.cachedResource("katex-auto-render.min", type: "js")));
+                document.head.appendChild(k2);
+            }
+
+            """
+        }
+
+        js += "window.__modsPostProcess();\n"
+
+        webView.evaluateJavaScript(js)
     }
 
     // MARK: - Helpers
@@ -185,6 +239,12 @@ struct MarkdownWebView: NSViewRepresentable {
     private static func containsInlineMath(_ html: String) -> Bool {
         let range = NSRange(html.startIndex..., in: html)
         return inlineMathRegex.firstMatch(in: html, range: range) != nil
+    }
+
+    private static func jsonEncode(_ string: String) -> String {
+        let data = try! JSONSerialization.data(withJSONObject: [string])
+        let array = String(data: data, encoding: .utf8)!
+        return String(array.dropFirst().dropLast())
     }
 
     nonisolated(unsafe) private static var _resourceCache: [String: String] = [:]
