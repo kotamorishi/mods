@@ -1,36 +1,80 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
-struct ContentView: View {
-    let document: MarkdownDocument
+struct StartView: View {
+    @State private var fileURL: URL?
+    @State private var markdown: String = ""
     @State private var zoomLevel: Double = 1.0
 
     var body: some View {
-        MarkdownWebView(markdown: document.text, zoomLevel: zoomLevel)
-            .frame(minWidth: 400, minHeight: 300)
-            .toolbar {
-                ToolbarItemGroup {
-                    Button {
-                        zoomLevel = max(0.25, zoomLevel - 0.1)
-                    } label: {
-                        Image(systemName: "minus.magnifyingglass")
-                    }
-                    .keyboardShortcut("-", modifiers: .command)
+        Group {
+            if markdown.isEmpty {
+                Text("Drop a markdown file or use File > Open")
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                MarkdownWebView(markdown: markdown, zoomLevel: zoomLevel)
+            }
+        }
+        .frame(minWidth: 400, minHeight: 300)
+        .navigationTitle(fileURL?.lastPathComponent ?? "mods")
+        .toolbar {
+            ToolbarItemGroup {
+                Button {
+                    zoomLevel = max(0.25, zoomLevel - 0.1)
+                } label: {
+                    Image(systemName: "minus.magnifyingglass")
+                }
+                .keyboardShortcut("-", modifiers: .command)
 
-                    Button {
-                        zoomLevel = 1.0
-                    } label: {
-                        Text("\(Int(zoomLevel * 100))%")
-                            .monospacedDigit()
-                            .frame(minWidth: 40)
-                    }
+                Button {
+                    zoomLevel = 1.0
+                } label: {
+                    Text("\(Int(zoomLevel * 100))%")
+                        .monospacedDigit()
+                        .frame(minWidth: 40)
+                }
 
-                    Button {
-                        zoomLevel = min(5.0, zoomLevel + 0.1)
-                    } label: {
-                        Image(systemName: "plus.magnifyingglass")
+                Button {
+                    zoomLevel = min(5.0, zoomLevel + 0.1)
+                } label: {
+                    Image(systemName: "plus.magnifyingglass")
+                }
+                .keyboardShortcut("+", modifiers: .command)
+            }
+        }
+        .focusedSceneValue(\.openFileAction, openFile)
+        .onDrop(of: [.fileURL], isTargeted: nil) { providers in
+            guard let provider = providers.first else { return false }
+            _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                if let url {
+                    DispatchQueue.main.async {
+                        loadURL(url)
                     }
-                    .keyboardShortcut("+", modifiers: .command)
                 }
             }
+            return true
+        }
+    }
+
+    private func openFile() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [
+            UTType(filenameExtension: "md") ?? .plainText,
+            UTType(filenameExtension: "markdown") ?? .plainText,
+            .plainText,
+        ]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        if panel.runModal() == .OK, let url = panel.url {
+            loadURL(url)
+        }
+    }
+
+    private func loadURL(_ url: URL) {
+        self.fileURL = url
+        _ = url.startAccessingSecurityScopedResource()
+        self.markdown = (try? String(contentsOf: url, encoding: .utf8)) ?? "Failed to load file."
+        url.stopAccessingSecurityScopedResource()
     }
 }
