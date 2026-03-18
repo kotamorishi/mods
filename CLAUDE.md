@@ -48,6 +48,9 @@ xcodebuild -project mods.xcodeproj -scheme mods -configuration Release build
 - Group: App / Views / Model / Extensions / Preview Extension
 - HTML/CSS template for rendering embedded as Swift string or resource file
 
+## Language
+- All code, comments, commit messages, README, and documentation must be written in English
+
 ## Git Workflow
 - Always commit and push changes after completing work
 - Do not ask for confirmation before committing and pushing — just do it
