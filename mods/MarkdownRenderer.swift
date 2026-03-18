@@ -59,28 +59,24 @@ struct MarkdownRenderer {
             let typeLower = type.lowercased()
             let typeTitle = type.prefix(1).uppercased() + type.dropFirst().lowercased()
 
-            let patterns = [
-                "<blockquote>\n<p>[!\(type)]<br>\n",
-                "<blockquote>\n<p>[!\(type)]\n",
-            ]
+            // Match <blockquote> containing [!TYPE] at the start of the first <p>
+            let regex = try! NSRegularExpression(
+                pattern: "<blockquote>\\n<p>\\[!\(type)\\](?:<br>)?\\n([\\s\\S]*?)</blockquote>",
+                options: []
+            )
 
-            for pattern in patterns {
-                while let range = result.range(of: pattern) {
-                    let searchStart = range.upperBound
-                    guard let closeRange = result.range(of: "</blockquote>", range: searchStart..<result.endIndex) else {
-                        break
-                    }
-
-                    let content = String(result[searchStart..<closeRange.lowerBound])
-                    let replacement = """
-                    <div class="markdown-alert markdown-alert-\(typeLower)">
-                    <p class="markdown-alert-title">\(typeTitle)</p>
-                    <p>\(content.replacingOccurrences(of: "</p>\n", with: "</p>\n<p>"))
-                    </div>
-                    """
-
-                    result.replaceSubrange(range.lowerBound..<closeRange.upperBound, with: replacement)
-                }
+            var nsResult = result as NSString
+            var match = regex.firstMatch(in: result, range: NSRange(location: 0, length: nsResult.length))
+            while let m = match {
+                let content = nsResult.substring(with: m.range(at: 1))
+                let replacement = """
+                <div class="markdown-alert markdown-alert-\(typeLower)">
+                <p class="markdown-alert-title">\(typeTitle)</p>
+                \(content)</div>
+                """
+                nsResult = nsResult.replacingCharacters(in: m.range, with: replacement) as NSString
+                result = nsResult as String
+                match = regex.firstMatch(in: result, range: NSRange(location: 0, length: nsResult.length))
             }
         }
 
