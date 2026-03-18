@@ -106,9 +106,23 @@ struct MarkdownWebView: NSViewRepresentable {
         return block
     }
 
+    class Coordinator: NSObject, WKNavigationDelegate {
+        func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+            if navigationAction.navigationType == .linkActivated, let url = navigationAction.request.url {
+                NSWorkspace.shared.open(url)
+                decisionHandler(.cancel)
+                return
+            }
+            decisionHandler(.allow)
+        }
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
     func makeNSView(context: Context) -> WKWebView {
         let webView = WKWebView()
         webView.autoresizingMask = [.width, .height]
+        webView.navigationDelegate = context.coordinator
         let html = buildHTML()
         webView.loadHTMLString(html, baseURL: nil)
         return webView

@@ -2,13 +2,23 @@ import Cocoa
 import QuickLookUI
 import WebKit
 
-class PreviewViewController: NSViewController, QLPreviewingController {
+class PreviewViewController: NSViewController, QLPreviewingController, WKNavigationDelegate {
     var webView: WKWebView!
 
     override func loadView() {
         webView = WKWebView()
         webView.autoresizingMask = [.width, .height]
+        webView.navigationDelegate = self
         self.view = webView
+    }
+
+    func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        if navigationAction.navigationType == .linkActivated, let url = navigationAction.request.url {
+            NSWorkspace.shared.open(url)
+            decisionHandler(.cancel)
+            return
+        }
+        decisionHandler(.allow)
     }
 
     private static let maxFileSize: UInt64 = 10 * 1024 * 1024
