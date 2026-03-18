@@ -12,24 +12,18 @@ Check these areas in priority order:
 
 **Performance:**
 - App launch time and time-to-render
-- HTML template size (all JS/CSS is embedded inline into every loadHTMLString call)
-- Resource loading (emoji.json, JS libraries read from disk on every render)
-- mermaid.min.js is ~3MB — loaded even when no mermaid blocks exist
-- katex.min.js is ~277KB — loaded even when no math exists
-- WKWebView creation overhead
 - Memory usage with multiple windows
+- WKWebView creation overhead
 
 **Quality:**
 - GFM rendering correctness vs github.com
 - Dark mode consistency
-- QuickLook extension parity with main app
-- Edge cases: very large files, empty files, binary files
+- Edge cases: unusual markdown syntax, non-UTF8 files
 
 **UX:**
-- File opening workflow
-- Window title and state
-- Zoom persistence
+- Zoom persistence across sessions
 - Keyboard shortcuts
+- Window management
 
 Pick ONE specific, measurable issue. Write it down clearly.
 
@@ -57,10 +51,28 @@ Pick ONE specific, measurable issue. Write it down clearly.
 Go back to step 1 and pick the next issue.
 Stop after 3 cycles per session unless instructed otherwise.
 
-## Current Known Issues (starting backlog)
+## Completed Improvements
 
-1. **HTML bloat**: Every render embeds ~3.4MB of JS inline into the HTML string (mermaid alone is 3MB). This is loaded even for simple READMEs with no diagrams.
-2. **Resource caching**: emoji.json, JS, and CSS files are re-read from disk on every file open.
-3. **Lazy loading**: KaTeX and Mermaid should only load when the markdown actually contains math or mermaid blocks.
-4. **QuickLook code duplication**: MarkdownRendererQL duplicates MarkdownRenderer logic.
-5. **Large file handling**: No guard against extremely large markdown files that could freeze the app.
+| Cycle | Type | Description |
+|-------|------|-------------|
+| 1 | Perf | Lazy-load Mermaid (~3MB) and KaTeX (~280KB) — only when content needs them |
+| 2 | Perf | Apply same lazy-loading to QuickLook extension |
+| 3 | Quality | Share MarkdownRenderer between app and QL via symlink (-117 lines) |
+| 4 | Quality | Add 10MB file size guard to prevent memory issues |
+| 5 | Perf | Cache static CSS style block — built once, reused across renders |
+| 6 | Perf | Cache base head, footer script, mermaid/katex blocks as statics |
+| 7 | Perf | Fix over-eager KaTeX detection (regex instead of `contains("$")`) |
+| 8 | Perf | Replace character-by-character emoji processing with regex |
+| 9 | UX | Handle file opening from Finder and `open` command via onOpenURL |
+| 10 | Quality | Fix empty file showing placeholder instead of blank page |
+| 11 | Perf | Apply static caching to QuickLook extension HTML template |
+| 12 | Quality | Align QuickLook font size/padding with main app |
+| 13 | Quality | Extract shared CSS into mods.css resource file (single source of truth) |
+
+## Remaining Opportunities
+
+- **File watching**: Auto-reload when the .md file changes on disk (feature — needs user request)
+- **Scroll position**: Preserve scroll position when reloading a file
+- **Window restoration**: Remember open files across app restarts
+- **Print support**: Cmd+P to print rendered markdown
+- **Search in document**: Cmd+F to find text in rendered view
