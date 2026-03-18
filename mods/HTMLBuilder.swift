@@ -8,11 +8,33 @@ enum HTMLBuilder {
 
     nonisolated(unsafe) private static var _resourceCache: [String: String] = [:]
 
+    nonisolated(unsafe) private static var _parentAppBundle: Bundle?
+
+    /// Resolve the parent app's bundle when running as an extension.
+    /// Structure: mods.app/Contents/PlugIns/ext.appex/Contents/MacOS/ext
+    /// Parent resources: mods.app/Contents/Resources/
+    private static func parentAppBundle() -> Bundle? {
+        if let cached = _parentAppBundle { return cached }
+        let extURL = Bundle.main.bundleURL
+        // Go up from ext.appex to PlugIns/ to Contents/ to mods.app/
+        let appURL = extURL
+            .deletingLastPathComponent()  // PlugIns/
+            .deletingLastPathComponent()  // Contents/
+            .deletingLastPathComponent()  // mods.app/
+        if let bundle = Bundle(url: appURL) {
+            _parentAppBundle = bundle
+            return bundle
+        }
+        return nil
+    }
+
     static func cachedResource(_ name: String, type: String) -> String {
         let key = "\(name).\(type)"
         if let cached = _resourceCache[key] { return cached }
-        guard let url = Bundle.main.url(forResource: name, withExtension: type),
-              let content = try? String(contentsOf: url, encoding: .utf8) else {
+        // Try own bundle first, then parent app bundle (for extensions sharing resources)
+        let url = Bundle.main.url(forResource: name, withExtension: type)
+            ?? parentAppBundle()?.url(forResource: name, withExtension: type)
+        guard let url, let content = try? String(contentsOf: url, encoding: .utf8) else {
             return ""
         }
         _resourceCache[key] = content
