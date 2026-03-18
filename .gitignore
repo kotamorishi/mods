@@ -28,4 +28,9 @@ Package.resolved
 *.gcda
 *.profraw
 *.profdata
+
+# Source assets
+icon.jpg
+
+# Claude
 .claude/

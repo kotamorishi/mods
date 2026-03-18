@@ -24,23 +24,19 @@ class PreviewViewController: NSViewController, QLPreviewingController, WKNavigat
     private static let maxFileSize: UInt64 = 10 * 1024 * 1024
 
     func preparePreviewOfFile(at url: URL, completionHandler handler: @escaping (Error?) -> Void) {
-        do {
-            if let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
-               let size = attrs[.size] as? UInt64,
-               size > Self.maxFileSize {
-                let sizeMB = String(format: "%.1f", Double(size) / 1_048_576)
-                let html = buildHTML(from: "# File too large\n\nThis file is \(sizeMB) MB. Maximum supported size is 10 MB.")
-                webView.loadHTMLString(html, baseURL: nil)
-                handler(nil)
-                return
-            }
-            let markdown = Self.readFileWithFallback(url: url)
-            let html = buildHTML(from: markdown)
+        if let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
+           let size = attrs[.size] as? UInt64,
+           size > Self.maxFileSize {
+            let sizeMB = String(format: "%.1f", Double(size) / 1_048_576)
+            let html = buildHTML(from: "# File too large\n\nThis file is \(sizeMB) MB. Maximum supported size is 10 MB.")
             webView.loadHTMLString(html, baseURL: nil)
             handler(nil)
-        } catch {
-            handler(error)
+            return
         }
+        let markdown = Self.readFileWithFallback(url: url)
+        let html = buildHTML(from: markdown)
+        webView.loadHTMLString(html, baseURL: nil)
+        handler(nil)
     }
 
     private static func readFileWithFallback(url: URL) -> String {
