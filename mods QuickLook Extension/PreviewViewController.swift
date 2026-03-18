@@ -1,8 +1,6 @@
-import Cocoa
-import Quartz
+import QuickLookUI
 import WebKit
 
-@MainActor
 class PreviewViewController: NSViewController, QLPreviewingController {
     var webView: WKWebView!
 
@@ -12,19 +10,22 @@ class PreviewViewController: NSViewController, QLPreviewingController {
         self.view = webView
     }
 
-    nonisolated func preparePreviewOfFile(at url: URL) async throws {
-        let markdown = try String(contentsOf: url, encoding: .utf8)
-        let html = buildHTML(from: markdown)
-        await MainActor.run {
+    func preparePreviewOfFile(at url: URL, completionHandler handler: @escaping (Error?) -> Void) {
+        do {
+            let markdown = try String(contentsOf: url, encoding: .utf8)
+            let html = buildHTML(from: markdown)
             webView.loadHTMLString(html, baseURL: nil)
+            handler(nil)
+        } catch {
+            handler(error)
         }
     }
 
-    nonisolated private func buildHTML(from markdown: String) -> String {
-        let markedJS = loadResource("marked.min", type: "js")
-        let highlightJS = loadResource("highlight.min", type: "js")
-        let githubCSS = loadResource("github.min", type: "css")
-        let githubDarkCSS = loadResource("github-dark.min", type: "css")
+    private func buildHTML(from markdown: String) -> String {
+        let markedJS = Self.loadResource("marked.min", type: "js")
+        let highlightJS = Self.loadResource("highlight.min", type: "js")
+        let githubCSS = Self.loadResource("github.min", type: "css")
+        let githubDarkCSS = Self.loadResource("github-dark.min", type: "css")
 
         let jsonData = try! JSONSerialization.data(withJSONObject: [markdown])
         let jsonArray = String(data: jsonData, encoding: .utf8)!
@@ -86,7 +87,7 @@ class PreviewViewController: NSViewController, QLPreviewingController {
         """
     }
 
-    nonisolated private func loadResource(_ name: String, type: String) -> String {
+    private static func loadResource(_ name: String, type: String) -> String {
         guard let url = Bundle.main.url(forResource: name, withExtension: type),
               let content = try? String(contentsOf: url, encoding: .utf8) else {
             return ""
