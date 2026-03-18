@@ -196,7 +196,7 @@ struct MarkdownWebView: NSViewRepresentable {
         let bodyHTML = MarkdownRenderer.renderToHTML(markdown)
 
         let needsMermaid = bodyHTML.contains("language-mermaid")
-        let needsMath = bodyHTML.contains("$") || bodyHTML.contains("language-math")
+        let needsMath = bodyHTML.contains("language-math") || bodyHTML.contains("$$") || Self.containsInlineMath(bodyHTML)
 
         var html = Self.baseHead()
         if needsMath { html += Self.katexHead() }
@@ -205,6 +205,15 @@ struct MarkdownWebView: NSViewRepresentable {
         html += Self.footerScript
         html += "</body>\n</html>"
         return html
+    }
+
+    /// Check for inline math pattern: $...$ where content is non-empty and doesn't start/end with space.
+    /// Avoids false positives like "costs $5" (no closing $) or "$ PATH $" (spaces).
+    private static let inlineMathRegex = try! NSRegularExpression(pattern: "\\$[^\\s$].*?[^\\s$]\\$|\\$[^\\s$]\\$", options: [])
+
+    private static func containsInlineMath(_ html: String) -> Bool {
+        let range = NSRange(html.startIndex..., in: html)
+        return inlineMathRegex.firstMatch(in: html, range: range) != nil
     }
 
     nonisolated(unsafe) private static var _resourceCache: [String: String] = [:]

@@ -33,6 +33,13 @@ class PreviewViewController: NSViewController, QLPreviewingController {
         }
     }
 
+    private static let inlineMathRegex = try! NSRegularExpression(pattern: "\\$[^\\s$].*?[^\\s$]\\$|\\$[^\\s$]\\$", options: [])
+
+    private static func containsInlineMath(_ html: String) -> Bool {
+        let range = NSRange(html.startIndex..., in: html)
+        return inlineMathRegex.firstMatch(in: html, range: range) != nil
+    }
+
     nonisolated(unsafe) private static var _resourceCache: [String: String] = [:]
 
     private static func cachedResource(_ name: String, type: String) -> String {
@@ -48,7 +55,7 @@ class PreviewViewController: NSViewController, QLPreviewingController {
         let bodyHTML = MarkdownRenderer.renderToHTML(markdown)
 
         let needsMermaid = bodyHTML.contains("language-mermaid")
-        let needsMath = bodyHTML.contains("$") || bodyHTML.contains("language-math")
+        let needsMath = bodyHTML.contains("language-math") || bodyHTML.contains("$$") || Self.containsInlineMath(bodyHTML)
 
         let highlightJS = Self.cachedResource("highlight.min", type: "js")
         let githubCSS = Self.cachedResource("github.min", type: "css")
