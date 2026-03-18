@@ -24,13 +24,13 @@ struct MarkdownWebView: NSViewRepresentable {
     }
 
     class Coordinator: NSObject, WKNavigationDelegate {
-        func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        @MainActor
+        func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction) async -> WKNavigationActionPolicy {
             if navigationAction.navigationType == .linkActivated, let url = navigationAction.request.url {
                 NSWorkspace.shared.open(url)
-                decisionHandler(.cancel)
-                return
+                return .cancel
             }
-            decisionHandler(.allow)
+            return .allow
         }
     }
 
