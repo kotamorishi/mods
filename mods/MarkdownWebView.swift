@@ -19,6 +19,10 @@ struct MarkdownWebView: NSViewRepresentable {
 
     private func buildHTML() -> String {
         let highlightJS = Self.loadResource("highlight.min", type: "js")
+        let katexJS = Self.loadResource("katex.min", type: "js")
+        let katexAutoRenderJS = Self.loadResource("katex-auto-render.min", type: "js")
+        let mermaidJS = Self.loadResource("mermaid.min", type: "js")
+        let katexCSS = Self.loadResource("katex.min", type: "css")
         let githubCSS = Self.loadResource("github.min", type: "css")
         let githubDarkCSS = Self.loadResource("github-dark.min", type: "css")
 
@@ -29,6 +33,7 @@ struct MarkdownWebView: NSViewRepresentable {
         <html>
         <head>
         <meta charset="utf-8">
+        <style>\(katexCSS)</style>
         <style>
         \(githubCSS)
         @media (prefers-color-scheme: dark) { \(githubDarkCSS) }
@@ -180,6 +185,17 @@ struct MarkdownWebView: NSViewRepresentable {
         /* Strikethrough */
         del { text-decoration: line-through; }
 
+        /* Color chips */
+        .color-chip {
+            display: inline-block;
+            width: 0.9em;
+            height: 0.9em;
+            border-radius: 50%;
+            margin-right: 0.3em;
+            vertical-align: middle;
+            border: 1px solid rgba(0,0,0,0.15);
+        }
+
         /* Alerts */
         .markdown-alert {
             padding: 8px 16px;
@@ -233,16 +249,63 @@ struct MarkdownWebView: NSViewRepresentable {
         }
         </style>
         <script>\(highlightJS)</script>
+        <script>\(mermaidJS)</script>
+        <script>\(katexJS)</script>
+        <script>\(katexAutoRenderJS)</script>
         </head>
         <body>
         <div id="content">\(bodyHTML)</div>
         <script>
+        // Mermaid diagrams
+        if (typeof mermaid !== 'undefined') {
+            mermaid.initialize({ startOnLoad: false, theme: window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default' });
+            var mermaidBlocks = document.querySelectorAll('pre code.language-mermaid');
+            var mermaidPromises = [];
+            mermaidBlocks.forEach(function(block, idx) {
+                var pre = block.parentElement;
+                var div = document.createElement('div');
+                div.className = 'mermaid';
+                div.textContent = block.textContent;
+                pre.replaceWith(div);
+            });
+            if (mermaidBlocks.length > 0) {
+                mermaid.run();
+            }
+        }
+
+        // Syntax highlighting
         document.querySelectorAll('pre code').forEach(function(block) {
-            hljs.highlightElement(block);
+            if (!block.classList.contains('language-math')) {
+                hljs.highlightElement(block);
+            }
         });
         document.querySelectorAll('input[type="checkbox"]').forEach(function(cb) {
             cb.disabled = true;
         });
+
+        // Convert ```math code blocks to rendered math
+        document.querySelectorAll('pre code.language-math').forEach(function(block) {
+            var pre = block.parentElement;
+            var div = document.createElement('div');
+            div.className = 'math-block';
+            try {
+                katex.render(block.textContent, div, { displayMode: true, throwOnError: false });
+            } catch(e) {
+                div.textContent = block.textContent;
+            }
+            pre.replaceWith(div);
+        });
+
+        // Render inline and block math ($...$ and $$...$$)
+        if (typeof renderMathInElement !== 'undefined') {
+            renderMathInElement(document.getElementById('content'), {
+                delimiters: [
+                    {left: '$$', right: '$$', display: true},
+                    {left: '$', right: '$', display: false}
+                ],
+                throwOnError: false
+            });
+        }
         </script>
         </body>
         </html>

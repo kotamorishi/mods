@@ -25,17 +25,24 @@ class PreviewViewController: NSViewController, QLPreviewingController {
 
     private func buildHTML(from markdown: String) -> String {
         let highlightJS = Self.loadResource("highlight.min", type: "js")
+        let katexJS = Self.loadResource("katex.min", type: "js")
+        let katexAutoRenderJS = Self.loadResource("katex-auto-render.min", type: "js")
+        let mermaidJS = Self.loadResource("mermaid.min", type: "js")
+        let katexCSS = Self.loadResource("katex.min", type: "css")
         let githubCSS = Self.loadResource("github.min", type: "css")
         let githubDarkCSS = Self.loadResource("github-dark.min", type: "css")
 
         var bodyHTML = MarkdownRendererQL.renderToHTML(markdown)
         bodyHTML = MarkdownRendererQL.processAlerts(bodyHTML)
+        bodyHTML = MarkdownRendererQL.processEmoji(bodyHTML)
+        bodyHTML = MarkdownRendererQL.processColorChips(bodyHTML)
 
         return """
         <!DOCTYPE html>
         <html>
         <head>
         <meta charset="utf-8">
+        <style>\(katexCSS)</style>
         <style>
         \(githubCSS)
         @media (prefers-color-scheme: dark) { \(githubDarkCSS) }
@@ -77,6 +84,8 @@ class PreviewViewController: NSViewController, QLPreviewingController {
         @media (prefers-color-scheme: dark) { blockquote { color: #8b949e; border-left-color: #3d444d; } }
         ul, ol { margin-top: 0; margin-bottom: 16px; padding-left: 2em; }
         ul { list-style-type: disc; }
+        ul ul { list-style-type: circle; }
+        ul ul ul { list-style-type: square; }
         li { margin-top: 0.25em; }
         li > p:first-child { margin-top: 0; }
         li > p:last-child { margin-bottom: 0; }
@@ -91,6 +100,7 @@ class PreviewViewController: NSViewController, QLPreviewingController {
         hr { height: 0.25em; padding: 0; margin: 24px 0; background-color: #d0d7de; border: 0; }
         @media (prefers-color-scheme: dark) { hr { background-color: #3d444d; } }
         del { text-decoration: line-through; }
+        .color-chip { display: inline-block; width: 0.9em; height: 0.9em; border-radius: 50%; margin-right: 0.3em; vertical-align: middle; border: 1px solid rgba(0,0,0,0.15); }
         .markdown-alert { padding: 8px 16px; margin-bottom: 16px; border-left: 0.25em solid; border-radius: 6px; }
         .markdown-alert-title { display: flex; align-items: center; font-weight: 600; margin-bottom: 4px; }
         .markdown-alert-note { border-left-color: #0969da; }
@@ -112,16 +122,47 @@ class PreviewViewController: NSViewController, QLPreviewingController {
         @media (prefers-color-scheme: dark) { kbd { color: #e6edf3; background-color: #161b22; border-color: #3d444d; } }
         </style>
         <script>\(highlightJS)</script>
+        <script>\(mermaidJS)</script>
+        <script>\(katexJS)</script>
+        <script>\(katexAutoRenderJS)</script>
         </head>
         <body>
         <div id="content">\(bodyHTML)</div>
         <script>
+        // Mermaid
+        if (typeof mermaid !== 'undefined') {
+            mermaid.initialize({ startOnLoad: false, theme: window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default' });
+            var mermaidBlocks = document.querySelectorAll('pre code.language-mermaid');
+            mermaidBlocks.forEach(function(block) {
+                var pre = block.parentElement;
+                var div = document.createElement('div');
+                div.className = 'mermaid';
+                div.textContent = block.textContent;
+                pre.replaceWith(div);
+            });
+            if (mermaidBlocks.length > 0) { mermaid.run(); }
+        }
+        // Syntax highlighting
         document.querySelectorAll('pre code').forEach(function(block) {
-            hljs.highlightElement(block);
+            if (!block.classList.contains('language-math')) { hljs.highlightElement(block); }
         });
-        document.querySelectorAll('input[type="checkbox"]').forEach(function(cb) {
-            cb.disabled = true;
+        document.querySelectorAll('input[type="checkbox"]').forEach(function(cb) { cb.disabled = true; });
+        // Math code blocks
+        document.querySelectorAll('pre code.language-math').forEach(function(block) {
+            var pre = block.parentElement;
+            var div = document.createElement('div');
+            div.className = 'math-block';
+            try { katex.render(block.textContent, div, { displayMode: true, throwOnError: false }); }
+            catch(e) { div.textContent = block.textContent; }
+            pre.replaceWith(div);
         });
+        // Inline/block math
+        if (typeof renderMathInElement !== 'undefined') {
+            renderMathInElement(document.getElementById('content'), {
+                delimiters: [{left: '$$', right: '$$', display: true}, {left: '$', right: '$', display: false}],
+                throwOnError: false
+            });
+        }
         </script>
         </body>
         </html>
@@ -137,18 +178,19 @@ class PreviewViewController: NSViewController, QLPreviewingController {
     }
 }
 
-/// Standalone markdown renderer for QuickLook extension.
+// MARK: - MarkdownRendererQL
+
 enum MarkdownRendererQL {
+    nonisolated(unsafe) private static var emojiMap: [String: String]? = nil
+
     static func renderToHTML(_ markdown: String) -> String {
         cmark_gfm_core_extensions_ensure_registered()
-
         let options = CMARK_OPT_DEFAULT | CMARK_OPT_UNSAFE | CMARK_OPT_FOOTNOTES
         let parser = cmark_parser_new(Int32(options))
         defer { cmark_parser_free(parser) }
 
         let extensionNames = ["table", "strikethrough", "autolink", "tagfilter", "tasklist"]
         var extensions: UnsafeMutablePointer<cmark_llist>? = nil
-
         for name in extensionNames {
             if let ext = cmark_find_syntax_extension(name) {
                 cmark_parser_attach_syntax_extension(parser, ext)
@@ -170,28 +212,23 @@ enum MarkdownRendererQL {
         }
         defer { free(htmlCStr) }
         cmark_llist_free(cmark_get_default_mem_allocator(), extensions)
-
         return String(cString: htmlCStr)
     }
 
     static func processAlerts(_ html: String) -> String {
         let alertTypes = ["NOTE", "TIP", "IMPORTANT", "WARNING", "CAUTION"]
         var result = html
-
         for type in alertTypes {
             let typeLower = type.lowercased()
             let typeTitle = type.prefix(1).uppercased() + type.dropFirst().lowercased()
-
             let patterns = [
                 "<blockquote>\n<p>[!\(type)]<br>\n",
                 "<blockquote>\n<p>[!\(type)]\n",
             ]
-
             for pattern in patterns {
                 while let range = result.range(of: pattern) {
                     let searchStart = range.upperBound
                     guard let closeRange = result.range(of: "</blockquote>", range: searchStart..<result.endIndex) else { break }
-
                     let content = String(result[searchStart..<closeRange.lowerBound])
                     let replacement = """
                     <div class="markdown-alert markdown-alert-\(typeLower)">
@@ -204,5 +241,69 @@ enum MarkdownRendererQL {
             }
         }
         return result
+    }
+
+    static func processEmoji(_ html: String) -> String {
+        let map = loadEmojiMap()
+        if map.isEmpty { return html }
+        var result = ""
+        var inTag = false
+        var inCode = false
+        var i = html.startIndex
+        while i < html.endIndex {
+            let ch = html[i]
+            if ch == "<" {
+                inTag = true
+                let rest = html[i...]
+                if rest.hasPrefix("<code") { inCode = true }
+                else if rest.hasPrefix("</code") { inCode = false }
+                result.append(ch)
+                i = html.index(after: i)
+                continue
+            }
+            if ch == ">" { inTag = false; result.append(ch); i = html.index(after: i); continue }
+            if !inTag && !inCode && ch == ":" {
+                let afterColon = html.index(after: i)
+                if afterColon < html.endIndex {
+                    if let endColon = html[afterColon...].firstIndex(of: ":") {
+                        let name = String(html[afterColon..<endColon])
+                        if name.count > 0 && name.count < 50 && !name.contains(" ") && !name.contains("<"),
+                           let emoji = map[name] {
+                            result.append(emoji)
+                            i = html.index(after: endColon)
+                            continue
+                        }
+                    }
+                }
+            }
+            result.append(ch)
+            i = html.index(after: i)
+        }
+        return result
+    }
+
+    static func processColorChips(_ html: String) -> String {
+        var result = html
+        let hexPattern = try! NSRegularExpression(pattern: "<code>(#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8}))</code>")
+        result = hexPattern.stringByReplacingMatches(in: result, range: NSRange(result.startIndex..., in: result),
+            withTemplate: "<code><span class=\"color-chip\" style=\"background-color: $1;\"></span>$1</code>")
+        let rgbPattern = try! NSRegularExpression(pattern: "<code>(rgba?\\([^)]+\\))</code>")
+        result = rgbPattern.stringByReplacingMatches(in: result, range: NSRange(result.startIndex..., in: result),
+            withTemplate: "<code><span class=\"color-chip\" style=\"background-color: $1;\"></span>$1</code>")
+        let hslPattern = try! NSRegularExpression(pattern: "<code>(hsla?\\([^)]+\\))</code>")
+        result = hslPattern.stringByReplacingMatches(in: result, range: NSRange(result.startIndex..., in: result),
+            withTemplate: "<code><span class=\"color-chip\" style=\"background-color: $1;\"></span>$1</code>")
+        return result
+    }
+
+    private static func loadEmojiMap() -> [String: String] {
+        if let cached = emojiMap { return cached }
+        guard let url = Bundle.main.url(forResource: "emoji", withExtension: "json"),
+              let data = try? Data(contentsOf: url),
+              let map = try? JSONDecoder().decode([String: String].self, from: data) else {
+            return [:]
+        }
+        emojiMap = map
+        return map
     }
 }
