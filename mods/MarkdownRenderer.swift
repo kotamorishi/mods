@@ -100,55 +100,45 @@ struct MarkdownRenderer {
         return map
     }
 
+    // Match :shortcode: but not inside HTML tags or <code> blocks
+    private static let emojiRegex = try! NSRegularExpression(
+        pattern: ":([a-z0-9_+\\-]+):",
+        options: []
+    )
+
     private static func processEmoji(_ html: String) -> String {
         let map = loadEmojiMap()
         if map.isEmpty { return html }
 
-        var result = ""
-        var inTag = false
-        var inCode = false
-        var i = html.startIndex
+        // Strip out <code>...</code> and HTML tags to find safe replacement zones
+        // Strategy: replace emoji only in text nodes (outside tags and code elements)
+        let nsHtml = html as NSString
+        let fullRange = NSRange(location: 0, length: nsHtml.length)
 
-        while i < html.endIndex {
-            let ch = html[i]
+        // Find all <code>...</code> ranges to exclude
+        let codeBlockRegex = try! NSRegularExpression(pattern: "<code[^>]*>[\\s\\S]*?</code>", options: [])
+        let codeRanges = codeBlockRegex.matches(in: html, range: fullRange).map { $0.range }
 
-            if ch == "<" {
-                inTag = true
-                let tagStart = i
-                // Check for <code> or </code>
-                let rest = html[i...]
-                if rest.hasPrefix("<code") { inCode = true }
-                else if rest.hasPrefix("</code") { inCode = false }
-                result.append(ch)
-                i = html.index(after: i)
-                continue
+        // Find all HTML tag ranges to exclude
+        let tagRegex = try! NSRegularExpression(pattern: "<[^>]+>", options: [])
+        let tagRanges = tagRegex.matches(in: html, range: fullRange).map { $0.range }
+
+        let excludedRanges = codeRanges + tagRanges
+
+        var result = html
+        // Process matches in reverse to preserve indices
+        let matches = emojiRegex.matches(in: html, range: fullRange).reversed()
+        for match in matches {
+            let matchRange = match.range
+            // Skip if inside an excluded range
+            let isExcluded = excludedRanges.contains { NSIntersectionRange($0, matchRange).length > 0 }
+            if isExcluded { continue }
+
+            let name = nsHtml.substring(with: match.range(at: 1))
+            if let emoji = map[name] {
+                let swiftRange = Range(matchRange, in: result)!
+                result.replaceSubrange(swiftRange, with: emoji)
             }
-            if ch == ">" {
-                inTag = false
-                result.append(ch)
-                i = html.index(after: i)
-                continue
-            }
-
-            // Only process emoji outside of HTML tags and code elements
-            if !inTag && !inCode && ch == ":" {
-                let afterColon = html.index(after: i)
-                if afterColon < html.endIndex {
-                    // Find closing colon
-                    if let endColon = html[afterColon...].firstIndex(of: ":") {
-                        let name = String(html[afterColon..<endColon])
-                        if name.count > 0 && name.count < 50 && !name.contains(" ") && !name.contains("<"),
-                           let emoji = map[name] {
-                            result.append(emoji)
-                            i = html.index(after: endColon)
-                            continue
-                        }
-                    }
-                }
-            }
-
-            result.append(ch)
-            i = html.index(after: i)
         }
 
         return result
