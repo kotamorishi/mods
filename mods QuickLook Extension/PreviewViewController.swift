@@ -5,8 +5,26 @@ import WebKit
 class PreviewViewController: NSViewController, QLPreviewingController, WKNavigationDelegate {
     var webView: WKWebView!
 
+    nonisolated(unsafe) private static var sharedConfig: WKWebViewConfiguration?
+
+    private static func configuration() -> WKWebViewConfiguration {
+        if let config = sharedConfig { return config }
+        let config = WKWebViewConfiguration()
+        let controller = WKUserContentController()
+
+        let highlightJS = cachedResource("highlight.min", type: "js")
+        if !highlightJS.isEmpty {
+            controller.addUserScript(WKUserScript(source: highlightJS, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
+        }
+        controller.addUserScript(WKUserScript(source: postProcessScript, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
+
+        config.userContentController = controller
+        sharedConfig = config
+        return config
+    }
+
     override func loadView() {
-        webView = WKWebView()
+        webView = WKWebView(frame: .zero, configuration: Self.configuration())
         webView.autoresizingMask = [.width, .height]
         webView.navigationDelegate = self
         self.view = webView
@@ -95,7 +113,6 @@ class PreviewViewController: NSViewController, QLPreviewingController, WKNavigat
         <head>
         <meta charset="utf-8">
         \(styleBlock())
-        <script>\(cachedResource("highlight.min", type: "js"))</script>
         """
         cachedBaseHead = head
         return head
@@ -119,8 +136,8 @@ class PreviewViewController: NSViewController, QLPreviewingController, WKNavigat
         return s
     }
 
-    private static let footerScript = """
-    <script>
+    /// Post-processing script injected via WKUserScript — runs after page load.
+    private static let postProcessScript = """
     if (typeof mermaid !== 'undefined') {
         mermaid.initialize({ startOnLoad: false, theme: window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default' });
         var mermaidBlocks = document.querySelectorAll('pre code.language-mermaid');
@@ -153,7 +170,6 @@ class PreviewViewController: NSViewController, QLPreviewingController, WKNavigat
             });
         }
     }
-    </script>
     """
 
     private func buildHTML(from markdown: String) -> String {
@@ -166,7 +182,6 @@ class PreviewViewController: NSViewController, QLPreviewingController, WKNavigat
         if needsMath { html += Self.katexHead() }
         if needsMermaid { html += Self.mermaidScript() }
         html += "</head>\n<body>\n<div id=\"content\">\(bodyHTML)</div>\n"
-        html += Self.footerScript
         html += "</body>\n</html>"
         return html
     }
