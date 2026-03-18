@@ -8,7 +8,7 @@ struct StartView: View {
 
     var body: some View {
         Group {
-            if markdown.isEmpty {
+            if fileURL == nil {
                 Text("Drop a markdown file or use File > Open")
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
