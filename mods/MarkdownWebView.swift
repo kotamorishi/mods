@@ -227,6 +227,7 @@ struct MarkdownWebView: NSViewRepresentable {
             """
         }
 
+        js += "window.scrollTo(0, 0);\n"
         js += "window.__modsPostProcess();\n"
 
         webView.evaluateJavaScript(js)
