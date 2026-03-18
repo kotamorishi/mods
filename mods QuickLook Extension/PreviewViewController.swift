@@ -1,121 +1,129 @@
 import Cocoa
 import QuickLookUI
-import JavaScriptCore
+import WebKit
+import CMarkGFM
 
 class PreviewViewController: NSViewController, QLPreviewingController {
-    var scrollView: NSScrollView!
-    var textView: NSTextView!
+    var webView: WKWebView!
 
     override func loadView() {
-        scrollView = NSScrollView()
-        scrollView.hasVerticalScroller = true
-        scrollView.hasHorizontalScroller = false
-        scrollView.autoresizingMask = [.width, .height]
-
-        textView = NSTextView()
-        textView.isEditable = false
-        textView.isSelectable = true
-        textView.autoresizingMask = [.width]
-        textView.textContainerInset = NSSize(width: 20, height: 20)
-        textView.isVerticallyResizable = true
-        textView.isHorizontallyResizable = false
-        textView.textContainer?.widthTracksTextView = true
-
-        textView.backgroundColor = NSColor(red: 0.94, green: 0.94, blue: 0.94, alpha: 1.0)
-        scrollView.documentView = textView
-        scrollView.backgroundColor = NSColor(red: 0.94, green: 0.94, blue: 0.94, alpha: 1.0)
-        self.view = scrollView
+        webView = WKWebView()
+        webView.autoresizingMask = [.width, .height]
+        self.view = webView
     }
 
     func preparePreviewOfFile(at url: URL, completionHandler handler: @escaping (Error?) -> Void) {
         do {
             let markdown = try String(contentsOf: url, encoding: .utf8)
-            let bodyHTML = renderMarkdownToHTML(markdown)
-            let fullHTML = wrapInDocument(bodyHTML)
-
-            if let data = fullHTML.data(using: .utf8),
-               let attrString = NSAttributedString(html: data, documentAttributes: nil) {
-                textView.textStorage?.setAttributedString(attrString)
-            } else {
-                textView.string = markdown
-            }
+            let html = buildHTML(from: markdown)
+            webView.loadHTMLString(html, baseURL: nil)
             handler(nil)
         } catch {
             handler(error)
         }
     }
 
-    private func renderMarkdownToHTML(_ markdown: String) -> String {
-        guard let ctx = JSContext() else { return "<pre>\(escapeHTML(markdown))</pre>" }
+    private func buildHTML(from markdown: String) -> String {
+        let highlightJS = Self.loadResource("highlight.min", type: "js")
+        let githubCSS = Self.loadResource("github.min", type: "css")
+        let githubDarkCSS = Self.loadResource("github-dark.min", type: "css")
 
-        let markedJS = Self.loadResource("marked.min", type: "js")
-        if markedJS.isEmpty { return "<pre>\(escapeHTML(markdown))</pre>" }
+        var bodyHTML = MarkdownRendererQL.renderToHTML(markdown)
+        bodyHTML = MarkdownRendererQL.processAlerts(bodyHTML)
 
-        ctx.evaluateScript("var document = {}; var window = { document: document }; var self = {};")
-        ctx.evaluateScript(markedJS)
-        ctx.evaluateScript("""
-            function renderMarkdown(md) {
-                try {
-                    marked.setOptions({ gfm: true, breaks: false });
-                    return marked.parse(md);
-                } catch(e) {
-                    return '<pre>' + md + '</pre>';
-                }
-            }
-        """)
-
-        if let result = ctx.objectForKeyedSubscript("renderMarkdown")?.call(withArguments: [markdown])?.toString() {
-            return result
-        }
-        return "<pre>\(escapeHTML(markdown))</pre>"
-    }
-
-    private func escapeHTML(_ text: String) -> String {
-        text.replacingOccurrences(of: "&", with: "&amp;")
-            .replacingOccurrences(of: "<", with: "&lt;")
-            .replacingOccurrences(of: ">", with: "&gt;")
-    }
-
-    private func wrapInDocument(_ bodyHTML: String) -> String {
         return """
         <!DOCTYPE html>
         <html>
         <head>
         <meta charset="utf-8">
         <style>
+        \(githubCSS)
+        @media (prefers-color-scheme: dark) { \(githubDarkCSS) }
+        :root { color-scheme: light dark; }
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif;
-            font-size: 13px; line-height: 1.6;
-            color: #1f2328; background-color: #f0f0f0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
+            font-size: 14px;
+            line-height: 1.5;
+            word-wrap: break-word;
+            padding: 24px;
+            max-width: 900px;
+            margin: 0 auto;
+            color: #1f2328;
+            background-color: #ffffff;
         }
-        pre, code {
-            font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
-            font-size: 12px;
+        @media (prefers-color-scheme: dark) {
+            body { color: #e6edf3; background-color: #0d1117; }
         }
-        pre {
-            padding: 12px;
-            background-color: rgba(128,128,128,0.1);
-            border-radius: 6px;
-            overflow: auto;
-        }
-        :not(pre) > code {
-            padding: 0.2em 0.4em;
-            background-color: rgba(128,128,128,0.15);
-            border-radius: 3px;
-        }
-        blockquote {
-            margin: 0; padding: 0 1em;
-            opacity: 0.7;
-            border-left: 0.25em solid rgba(128,128,128,0.4);
-        }
-        table { border-collapse: collapse; }
-        table th, table td { padding: 6px 13px; border: 1px solid rgba(128,128,128,0.3); }
-        hr { border: none; border-top: 1px solid rgba(128,128,128,0.3); }
-        a { color: #0969da; }
-        img { max-width: 100%; }
+        h1, h2, h3, h4, h5, h6 { margin-top: 24px; margin-bottom: 16px; font-weight: 600; line-height: 1.25; }
+        h1 { font-size: 2em; padding-bottom: 0.3em; border-bottom: 1px solid #d1d9e0; }
+        h2 { font-size: 1.5em; padding-bottom: 0.3em; border-bottom: 1px solid #d1d9e0; }
+        h3 { font-size: 1.25em; }
+        h4 { font-size: 1em; }
+        h5 { font-size: 0.875em; }
+        h6 { font-size: 0.85em; color: #656d76; }
+        @media (prefers-color-scheme: dark) { h1, h2 { border-bottom-color: #3d444d; } h6 { color: #8b949e; } }
+        p { margin-top: 0; margin-bottom: 16px; }
+        a { color: #0969da; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        @media (prefers-color-scheme: dark) { a { color: #4493f8; } }
+        img { max-width: 100%; box-sizing: border-box; }
+        code, tt { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; font-size: 85%; }
+        :not(pre) > code { padding: 0.2em 0.4em; border-radius: 6px; background-color: rgba(175,184,193,0.2); }
+        pre { padding: 16px; overflow: auto; font-size: 85%; line-height: 1.45; border-radius: 6px; background-color: #f6f8fa; margin-bottom: 16px; }
+        pre code { padding: 0; background-color: transparent; border: 0; font-size: 100%; }
+        @media (prefers-color-scheme: dark) { pre { background-color: #161b22; } }
+        blockquote { margin: 0 0 16px 0; padding: 0 1em; color: #656d76; border-left: 0.25em solid #d0d7de; }
+        @media (prefers-color-scheme: dark) { blockquote { color: #8b949e; border-left-color: #3d444d; } }
+        ul, ol { margin-top: 0; margin-bottom: 16px; padding-left: 2em; }
+        ul { list-style-type: disc; }
+        li { margin-top: 0.25em; }
+        li > p:first-child { margin-top: 0; }
+        li > p:last-child { margin-bottom: 0; }
+        ul.contains-task-list { list-style-type: none; padding-left: 1.6em; }
+        ul.contains-task-list li input[type="checkbox"] { margin-right: 0.5em; }
+        table { border-spacing: 0; border-collapse: collapse; width: max-content; max-width: 100%; margin-bottom: 16px; display: block; }
+        table th { font-weight: 600; padding: 6px 13px; border: 1px solid #d0d7de; }
+        table td { padding: 6px 13px; border: 1px solid #d0d7de; }
+        table tr { background-color: #ffffff; border-top: 1px solid #d1d9e0; }
+        table tr:nth-child(2n) { background-color: #f6f8fa; }
+        @media (prefers-color-scheme: dark) { table th, table td { border-color: #3d444d; } table tr { background-color: #0d1117; } table tr:nth-child(2n) { background-color: #161b22; } }
+        hr { height: 0.25em; padding: 0; margin: 24px 0; background-color: #d0d7de; border: 0; }
+        @media (prefers-color-scheme: dark) { hr { background-color: #3d444d; } }
+        del { text-decoration: line-through; }
+        .markdown-alert { padding: 8px 16px; margin-bottom: 16px; border-left: 0.25em solid; border-radius: 6px; }
+        .markdown-alert-title { display: flex; align-items: center; font-weight: 600; margin-bottom: 4px; }
+        .markdown-alert-note { border-left-color: #0969da; }
+        .markdown-alert-note .markdown-alert-title { color: #0969da; }
+        .markdown-alert-tip { border-left-color: #1a7f37; }
+        .markdown-alert-tip .markdown-alert-title { color: #1a7f37; }
+        .markdown-alert-important { border-left-color: #8250df; }
+        .markdown-alert-important .markdown-alert-title { color: #8250df; }
+        .markdown-alert-warning { border-left-color: #9a6700; }
+        .markdown-alert-warning .markdown-alert-title { color: #9a6700; }
+        .markdown-alert-caution { border-left-color: #cf222e; }
+        .markdown-alert-caution .markdown-alert-title { color: #cf222e; }
+        .footnotes { font-size: 85%; color: #656d76; border-top: 1px solid #d0d7de; margin-top: 24px; padding-top: 16px; }
+        @media (prefers-color-scheme: dark) { .footnotes { color: #8b949e; border-top-color: #3d444d; } }
+        sub, sup { font-size: 75%; line-height: 0; position: relative; vertical-align: baseline; }
+        sup { top: -0.5em; }
+        sub { bottom: -0.25em; }
+        kbd { display: inline-block; padding: 3px 5px; font-size: 11px; line-height: 10px; color: #1f2328; vertical-align: middle; background-color: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px; box-shadow: inset 0 -1px 0 #d0d7de; }
+        @media (prefers-color-scheme: dark) { kbd { color: #e6edf3; background-color: #161b22; border-color: #3d444d; } }
         </style>
+        <script>\(highlightJS)</script>
         </head>
-        <body>\(bodyHTML)</body>
+        <body>
+        <div id="content">\(bodyHTML)</div>
+        <script>
+        document.querySelectorAll('pre code').forEach(function(block) {
+            hljs.highlightElement(block);
+        });
+        document.querySelectorAll('input[type="checkbox"]').forEach(function(cb) {
+            cb.disabled = true;
+        });
+        </script>
+        </body>
         </html>
         """
     }
@@ -126,5 +134,75 @@ class PreviewViewController: NSViewController, QLPreviewingController {
             return ""
         }
         return content
+    }
+}
+
+/// Standalone markdown renderer for QuickLook extension.
+enum MarkdownRendererQL {
+    static func renderToHTML(_ markdown: String) -> String {
+        cmark_gfm_core_extensions_ensure_registered()
+
+        let options = CMARK_OPT_DEFAULT | CMARK_OPT_UNSAFE | CMARK_OPT_FOOTNOTES
+        let parser = cmark_parser_new(Int32(options))
+        defer { cmark_parser_free(parser) }
+
+        let extensionNames = ["table", "strikethrough", "autolink", "tagfilter", "tasklist"]
+        var extensions: UnsafeMutablePointer<cmark_llist>? = nil
+
+        for name in extensionNames {
+            if let ext = cmark_find_syntax_extension(name) {
+                cmark_parser_attach_syntax_extension(parser, ext)
+                extensions = cmark_llist_append(cmark_get_default_mem_allocator(), extensions, ext)
+            }
+        }
+
+        let bytes = markdown.utf8
+        cmark_parser_feed(parser, markdown, bytes.count)
+        guard let doc = cmark_parser_finish(parser) else {
+            cmark_llist_free(cmark_get_default_mem_allocator(), extensions)
+            return "<p>Failed to parse markdown.</p>"
+        }
+        defer { cmark_node_free(doc) }
+
+        guard let htmlCStr = cmark_render_html(doc, Int32(options), extensions) else {
+            cmark_llist_free(cmark_get_default_mem_allocator(), extensions)
+            return "<p>Failed to render HTML.</p>"
+        }
+        defer { free(htmlCStr) }
+        cmark_llist_free(cmark_get_default_mem_allocator(), extensions)
+
+        return String(cString: htmlCStr)
+    }
+
+    static func processAlerts(_ html: String) -> String {
+        let alertTypes = ["NOTE", "TIP", "IMPORTANT", "WARNING", "CAUTION"]
+        var result = html
+
+        for type in alertTypes {
+            let typeLower = type.lowercased()
+            let typeTitle = type.prefix(1).uppercased() + type.dropFirst().lowercased()
+
+            let patterns = [
+                "<blockquote>\n<p>[!\(type)]<br>\n",
+                "<blockquote>\n<p>[!\(type)]\n",
+            ]
+
+            for pattern in patterns {
+                while let range = result.range(of: pattern) {
+                    let searchStart = range.upperBound
+                    guard let closeRange = result.range(of: "</blockquote>", range: searchStart..<result.endIndex) else { break }
+
+                    let content = String(result[searchStart..<closeRange.lowerBound])
+                    let replacement = """
+                    <div class="markdown-alert markdown-alert-\(typeLower)">
+                    <p class="markdown-alert-title">\(typeTitle)</p>
+                    <p>\(content.replacingOccurrences(of: "</p>\n", with: "</p>\n<p>"))
+                    </div>
+                    """
+                    result.replaceSubrange(range.lowerBound..<closeRange.upperBound, with: replacement)
+                }
+            }
+        }
+        return result
     }
 }

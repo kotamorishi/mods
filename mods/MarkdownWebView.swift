@@ -18,14 +18,11 @@ struct MarkdownWebView: NSViewRepresentable {
     }
 
     private func buildHTML() -> String {
-        let markedJS = Self.loadResource("marked.min", type: "js")
         let highlightJS = Self.loadResource("highlight.min", type: "js")
         let githubCSS = Self.loadResource("github.min", type: "css")
         let githubDarkCSS = Self.loadResource("github-dark.min", type: "css")
 
-        let jsonData = try! JSONSerialization.data(withJSONObject: [markdown])
-        let jsonArray = String(data: jsonData, encoding: .utf8)!
-        let jsonString = jsonArray.dropFirst().dropLast()
+        let bodyHTML = MarkdownRenderer.renderToHTML(markdown)
 
         return """
         <!DOCTYPE html>
@@ -129,16 +126,18 @@ struct MarkdownWebView: NSViewRepresentable {
             margin-bottom: 16px;
             padding-left: 2em;
         }
-        li + li { margin-top: 0.25em; }
+        ul { list-style-type: disc; }
+        ul ul { list-style-type: circle; }
+        ul ul ul { list-style-type: square; }
+        li { margin-top: 0.25em; }
+        li > p { margin-top: 16px; margin-bottom: 16px; }
+        li > p:first-child { margin-top: 0; }
+        li > p:last-child { margin-bottom: 0; }
 
         /* Task lists */
-        .contains-task-list { list-style-type: none; padding-left: 0; }
-        .task-list-item { position: relative; padding-left: 1.5em; }
-        .task-list-item input[type="checkbox"] {
-            position: absolute;
-            left: 0;
-            top: 0.3em;
-            margin: 0;
+        ul.contains-task-list { list-style-type: none; padding-left: 1.6em; }
+        ul.contains-task-list li input[type="checkbox"] {
+            margin-right: 0.5em;
         }
 
         /* Tables */
@@ -181,7 +180,7 @@ struct MarkdownWebView: NSViewRepresentable {
         /* Strikethrough */
         del { text-decoration: line-through; }
 
-        /* Alerts (GFM) */
+        /* Alerts */
         .markdown-alert {
             padding: 8px 16px;
             margin-bottom: 16px;
@@ -233,59 +232,17 @@ struct MarkdownWebView: NSViewRepresentable {
             kbd { color: #e6edf3; background-color: #161b22; border-color: #3d444d; box-shadow: inset 0 -1px 0 #3d444d; }
         }
         </style>
-        <script>\(markedJS)</script>
         <script>\(highlightJS)</script>
         </head>
         <body>
-        <div id="content"></div>
+        <div id="content">\(bodyHTML)</div>
         <script>
-        try {
-            var md = \(jsonString);
-
-            // Custom renderer for GitHub-style alerts
-            var renderer = new marked.Renderer();
-            var origBlockquote = renderer.blockquote.bind(renderer);
-
-            marked.setOptions({
-                gfm: true,
-                breaks: false,
-                renderer: renderer
-            });
-
-            var html = marked.parse(md);
-
-            // Post-process: convert GitHub alerts
-            html = html.replace(/<blockquote>\\n<p>\\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\\]<br>([\\s\\S]*?)<\\/p>\\n<\\/blockquote>/gi,
-                function(match, type, content) {
-                    var t = type.charAt(0).toUpperCase() + type.slice(1).toLowerCase();
-                    return '<div class="markdown-alert markdown-alert-' + type.toLowerCase() + '">' +
-                           '<p class="markdown-alert-title">' + t + '</p>' +
-                           '<p>' + content + '</p></div>';
-                }
-            );
-            html = html.replace(/<blockquote>\\n<p>\\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\\]\\n([\\s\\S]*?)<\\/p>\\n<\\/blockquote>/gi,
-                function(match, type, content) {
-                    var t = type.charAt(0).toUpperCase() + type.slice(1).toLowerCase();
-                    return '<div class="markdown-alert markdown-alert-' + type.toLowerCase() + '">' +
-                           '<p class="markdown-alert-title">' + t + '</p>' +
-                           '<p>' + content + '</p></div>';
-                }
-            );
-
-            document.getElementById('content').innerHTML = html;
-
-            // Syntax highlighting
-            document.querySelectorAll('pre code').forEach(function(block) {
-                hljs.highlightElement(block);
-            });
-
-            // Make checkboxes disabled
-            document.querySelectorAll('input[type="checkbox"]').forEach(function(cb) {
-                cb.disabled = true;
-            });
-        } catch(e) {
-            document.body.innerText = 'Render error: ' + e.message;
-        }
+        document.querySelectorAll('pre code').forEach(function(block) {
+            hljs.highlightElement(block);
+        });
+        document.querySelectorAll('input[type="checkbox"]').forEach(function(cb) {
+            cb.disabled = true;
+        });
         </script>
         </body>
         </html>
