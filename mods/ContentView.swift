@@ -44,6 +44,9 @@ struct StartView: View {
             }
         }
         .focusedSceneValue(\.openFileAction, openFile)
+        .onOpenURL { url in
+            loadURL(url)
+        }
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in
             guard let provider = providers.first else { return false }
             _ = provider.loadObject(ofClass: URL.self) { url, _ in
