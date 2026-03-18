@@ -118,74 +118,93 @@ struct MarkdownWebView: NSViewRepresentable {
         webView.pageZoom = zoomLevel
     }
 
-    private func buildHTML() -> String {
-        let bodyHTML = MarkdownRenderer.renderToHTML(markdown)
+    nonisolated(unsafe) private static var cachedBaseHead: String?
+    nonisolated(unsafe) private static var cachedMermaidScript: String?
+    nonisolated(unsafe) private static var cachedKatexHead: String?
 
-        // Detect which optional libraries are needed
-        let needsMermaid = bodyHTML.contains("language-mermaid")
-        let needsMath = bodyHTML.contains("$") || bodyHTML.contains("language-math")
-
-        // Build script/css tags — only include heavy libs when needed
-        var scriptTags = "<script>\(Self.cachedResource("highlight.min", type: "js"))</script>\n"
-        if needsMermaid { scriptTags += "<script>\(Self.cachedResource("mermaid.min", type: "js"))</script>\n" }
-        var cssTags = ""
-        if needsMath {
-            cssTags = "<style>\(Self.cachedResource("katex.min", type: "css"))</style>\n"
-            scriptTags += "<script>\(Self.cachedResource("katex.min", type: "js"))</script>\n"
-            scriptTags += "<script>\(Self.cachedResource("katex-auto-render.min", type: "js"))</script>\n"
+    private static let footerScript = """
+    <script>
+    if (typeof mermaid !== 'undefined') {
+        mermaid.initialize({ startOnLoad: false, theme: window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default' });
+        var mermaidBlocks = document.querySelectorAll('pre code.language-mermaid');
+        mermaidBlocks.forEach(function(block) {
+            var pre = block.parentElement;
+            var div = document.createElement('div');
+            div.className = 'mermaid';
+            div.textContent = block.textContent;
+            pre.replaceWith(div);
+        });
+        if (mermaidBlocks.length > 0) { mermaid.run(); }
+    }
+    document.querySelectorAll('pre code').forEach(function(block) {
+        if (!block.classList.contains('language-math')) { hljs.highlightElement(block); }
+    });
+    document.querySelectorAll('input[type="checkbox"]').forEach(function(cb) { cb.disabled = true; });
+    if (typeof katex !== 'undefined') {
+        document.querySelectorAll('pre code.language-math').forEach(function(block) {
+            var pre = block.parentElement;
+            var div = document.createElement('div');
+            div.className = 'math-block';
+            try { katex.render(block.textContent, div, { displayMode: true, throwOnError: false }); }
+            catch(e) { div.textContent = block.textContent; }
+            pre.replaceWith(div);
+        });
+        if (typeof renderMathInElement !== 'undefined') {
+            renderMathInElement(document.getElementById('content'), {
+                delimiters: [{left: '$$', right: '$$', display: true}, {left: '$', right: '$', display: false}],
+                throwOnError: false
+            });
         }
+    }
+    </script>
+    """
 
-        return """
+    /// Base <head> with CSS + highlight.js (always needed). Built once.
+    private static func baseHead() -> String {
+        if let cached = cachedBaseHead { return cached }
+        let head = """
         <!DOCTYPE html>
         <html>
         <head>
         <meta charset="utf-8">
-        \(cssTags)\(Self.styleBlock())
-        \(scriptTags)</head>
-        <body>
-        <div id="content">\(bodyHTML)</div>
-        <script>
-        // Mermaid diagrams
-        if (typeof mermaid !== 'undefined') {
-            mermaid.initialize({ startOnLoad: false, theme: window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default' });
-            var mermaidBlocks = document.querySelectorAll('pre code.language-mermaid');
-            mermaidBlocks.forEach(function(block) {
-                var pre = block.parentElement;
-                var div = document.createElement('div');
-                div.className = 'mermaid';
-                div.textContent = block.textContent;
-                pre.replaceWith(div);
-            });
-            if (mermaidBlocks.length > 0) { mermaid.run(); }
-        }
-
-        // Syntax highlighting
-        document.querySelectorAll('pre code').forEach(function(block) {
-            if (!block.classList.contains('language-math')) { hljs.highlightElement(block); }
-        });
-        document.querySelectorAll('input[type="checkbox"]').forEach(function(cb) { cb.disabled = true; });
-
-        // Math rendering
-        if (typeof katex !== 'undefined') {
-            document.querySelectorAll('pre code.language-math').forEach(function(block) {
-                var pre = block.parentElement;
-                var div = document.createElement('div');
-                div.className = 'math-block';
-                try { katex.render(block.textContent, div, { displayMode: true, throwOnError: false }); }
-                catch(e) { div.textContent = block.textContent; }
-                pre.replaceWith(div);
-            });
-            if (typeof renderMathInElement !== 'undefined') {
-                renderMathInElement(document.getElementById('content'), {
-                    delimiters: [{left: '$$', right: '$$', display: true}, {left: '$', right: '$', display: false}],
-                    throwOnError: false
-                });
-            }
-        }
-        </script>
-        </body>
-        </html>
+        \(styleBlock())
+        <script>\(cachedResource("highlight.min", type: "js"))</script>
         """
+        cachedBaseHead = head
+        return head
+    }
+
+    private static func mermaidScript() -> String {
+        if let cached = cachedMermaidScript { return cached }
+        let s = "<script>\(cachedResource("mermaid.min", type: "js"))</script>\n"
+        cachedMermaidScript = s
+        return s
+    }
+
+    private static func katexHead() -> String {
+        if let cached = cachedKatexHead { return cached }
+        let s = """
+        <style>\(cachedResource("katex.min", type: "css"))</style>
+        <script>\(cachedResource("katex.min", type: "js"))</script>
+        <script>\(cachedResource("katex-auto-render.min", type: "js"))</script>
+        """
+        cachedKatexHead = s
+        return s
+    }
+
+    private func buildHTML() -> String {
+        let bodyHTML = MarkdownRenderer.renderToHTML(markdown)
+
+        let needsMermaid = bodyHTML.contains("language-mermaid")
+        let needsMath = bodyHTML.contains("$") || bodyHTML.contains("language-math")
+
+        var html = Self.baseHead()
+        if needsMath { html += Self.katexHead() }
+        if needsMermaid { html += Self.mermaidScript() }
+        html += "</head>\n<body>\n<div id=\"content\">\(bodyHTML)</div>\n"
+        html += Self.footerScript
+        html += "</body>\n</html>"
+        return html
     }
 
     nonisolated(unsafe) private static var _resourceCache: [String: String] = [:]
