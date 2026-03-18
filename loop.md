@@ -68,11 +68,32 @@ Stop after 3 cycles per session unless instructed otherwise.
 | 11 | Perf | Apply static caching to QuickLook extension HTML template |
 | 12 | Quality | Align QuickLook font size/padding with main app |
 | 13 | Quality | Extract shared CSS into mods.css resource file (single source of truth) |
+| 14 | Quality | Update loop.md backlog to reflect completed work |
+| 15 | Quality | Handle non-UTF8 file encoding with fallback (Latin-1, Shift-JIS, UTF-16) |
+| 16 | Quality | Remove dead do/catch in QL extension; untrack icon.jpg |
+| 17 | Quality | Fix alert processing for multi-paragraph and complex content |
+| 18 | Quality | Fix WKNavigationDelegate warning with modern async API (zero warnings) |
+| 19 | Perf | Replace duplicated QL resources with symlinks (-3.4MB from git repo) |
+| 20 | Perf | Inject highlight.js via WKUserScript — parsed once, not per render |
+| 21 | Perf | Use evaluateJavaScript for content swap without page reload |
+| 22 | Perf | Apply WKUserScript optimization to QuickLook extension |
+| 23 | Perf | Add early-exit checks to skip unnecessary post-processing |
+| 24 | Perf | Use regex pre-check for emoji to avoid loading map for URL colons |
+| 25 | Perf | Read file data once for encoding fallback instead of per attempt |
+| 26 | UX | Reset scroll to top when switching files via evaluateJavaScript |
+| 11 | Perf | Apply static caching to QuickLook extension HTML template |
+| 12 | Quality | Align QuickLook font size/padding with main app |
+| 13 | Quality | Extract shared CSS into mods.css resource file (single source of truth) |
 
 ## Remaining Opportunities
 
-- **File watching**: Auto-reload when the .md file changes on disk (feature — needs user request)
-- **Scroll position**: Preserve scroll position when reloading a file
-- **Window restoration**: Remember open files across app restarts
-- **Print support**: Cmd+P to print rendered markdown
-- **Search in document**: Cmd+F to find text in rendered view
+**Features (require user request per CLAUDE.md):**
+- File watching: auto-reload when the .md file changes on disk
+- Multiple windows: open each file in a new window
+- Print support: Cmd+P to print rendered markdown
+- Search in document: Cmd+F to find text in rendered view
+- Window restoration: remember open files across app restarts
+
+**Quality:**
+- QL extension code duplication: ~60 lines of shared logic (styleBlock, baseHead, etc.) could be extracted
+- Test coverage: no automated tests exist
