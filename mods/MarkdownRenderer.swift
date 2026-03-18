@@ -52,6 +52,7 @@ struct MarkdownRenderer {
     // MARK: - Alerts
 
     private static func processAlerts(_ html: String) -> String {
+        guard html.contains("<blockquote>") && html.contains("[!") else { return html }
         let alertTypes = ["NOTE", "TIP", "IMPORTANT", "WARNING", "CAUTION"]
         var result = html
 
@@ -103,6 +104,8 @@ struct MarkdownRenderer {
     )
 
     private static func processEmoji(_ html: String) -> String {
+        // Fast check: no colon means no emoji shortcodes possible
+        guard html.contains(":") else { return html }
         let map = loadEmojiMap()
         if map.isEmpty { return html }
 
@@ -143,7 +146,8 @@ struct MarkdownRenderer {
     // MARK: - Color Chips
 
     private static func processColorChips(_ html: String) -> String {
-        // Match <code>#hex</code>, <code>rgb(...)</code>, <code>hsl(...)</code>
+        // Fast check: no inline code means no color chips possible
+        guard html.contains("<code>") else { return html }
         var result = html
 
         // Hex colors: #RGB, #RRGGBB, #RRGGBBAA
