@@ -17,21 +17,23 @@ macOS native markdown viewer app (view-only, no editing). Renders markdown files
 - File opening: double-click (.md association), command-line, QuickLook
 
 ## Build & Run Commands
+Requires DEVELOPMENT_TEAM environment variable for code signing (needed for QuickLook extension).
+
 ```bash
-# Build (with code signing for QuickLook extension)
-xcodebuild -project mods.xcodeproj -scheme mods -configuration Debug build SYMROOT=$(pwd)/build DEVELOPMENT_TEAM=7M75V64ZE5 CODE_SIGN_IDENTITY="Apple Development"
+# Build
+xcodebuild -project mods.xcodeproj -scheme mods -configuration Debug build SYMROOT=$(pwd)/build DEVELOPMENT_TEAM=$DEVELOPMENT_TEAM CODE_SIGN_IDENTITY="Apple Development"
 
 # Run
 open build/Debug/mods.app
 
 # Build and run
-xcodebuild -project mods.xcodeproj -scheme mods -configuration Debug build SYMROOT=$(pwd)/build DEVELOPMENT_TEAM=7M75V64ZE5 CODE_SIGN_IDENTITY="Apple Development" && open build/Debug/mods.app
+xcodebuild -project mods.xcodeproj -scheme mods -configuration Debug build SYMROOT=$(pwd)/build DEVELOPMENT_TEAM=$DEVELOPMENT_TEAM CODE_SIGN_IDENTITY="Apple Development" && open build/Debug/mods.app
 
 # Clean
 xcodebuild -project mods.xcodeproj -scheme mods clean
 
 # Release build
-xcodebuild -project mods.xcodeproj -scheme mods -configuration Release build SYMROOT=$(pwd)/build DEVELOPMENT_TEAM=7M75V64ZE5 CODE_SIGN_IDENTITY="Apple Development"
+xcodebuild -project mods.xcodeproj -scheme mods -configuration Release build SYMROOT=$(pwd)/build DEVELOPMENT_TEAM=$DEVELOPMENT_TEAM CODE_SIGN_IDENTITY="Apple Development"
 
 # Install to /Applications (required for QuickLook extension registration)
 cp -R build/Debug/mods.app /Applications/mods.app
