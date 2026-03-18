@@ -71,10 +71,21 @@ struct StartView: View {
         }
     }
 
+    private static let maxFileSize: UInt64 = 10 * 1024 * 1024 // 10 MB
+
     private func loadURL(_ url: URL) {
         self.fileURL = url
         _ = url.startAccessingSecurityScopedResource()
+        defer { url.stopAccessingSecurityScopedResource() }
+
+        if let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
+           let size = attrs[.size] as? UInt64,
+           size > Self.maxFileSize {
+            let sizeMB = String(format: "%.1f", Double(size) / 1_048_576)
+            self.markdown = "# File too large\n\nThis file is \(sizeMB) MB. Maximum supported size is 10 MB."
+            return
+        }
+
         self.markdown = (try? String(contentsOf: url, encoding: .utf8)) ?? "Failed to load file."
-        url.stopAccessingSecurityScopedResource()
     }
 }
