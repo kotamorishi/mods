@@ -89,19 +89,6 @@ struct StartView: View {
             return
         }
 
-        self.markdown = Self.readFileWithFallback(url: url)
-    }
-
-    private static func readFileWithFallback(url: URL) -> String {
-        guard let data = try? Data(contentsOf: url) else {
-            return "# Unable to read file\n\nCould not read file data."
-        }
-        let encodings: [String.Encoding] = [.utf8, .isoLatin1, .shiftJIS, .utf16, .ascii]
-        for encoding in encodings {
-            if let content = String(data: data, encoding: encoding) {
-                return content
-            }
-        }
-        return "# Unable to read file\n\nThis file could not be decoded as text."
+        self.markdown = HTMLBuilder.readFileWithFallback(url: url)
     }
 }
