@@ -1,4 +1,30 @@
+# Build
 build/
 DerivedData/
+
+# Xcode user data
 *.xcuserdata
 xcuserdata/
+*.xcworkspace
+
+# macOS
+.DS_Store
+*.swp
+*~
+
+# Binaries
+*.app
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Swift Package Manager
+.build/
+Packages/
+Package.resolved
+
+# Code coverage
+*.gcno
+*.gcda
+*.profraw
+*.profdata
