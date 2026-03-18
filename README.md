@@ -20,10 +20,10 @@ A lightweight macOS native markdown viewer. View-only — no editing.
 
 ```bash
 # Build
-xcodebuild -project mods.xcodeproj -scheme mods -configuration Debug build
+xcodebuild -project mods.xcodeproj -scheme mods -configuration Debug build SYMROOT=$(pwd)/build
 
 # Build and run
-xcodebuild -project mods.xcodeproj -scheme mods -configuration Debug build && open ~/Library/Developer/Xcode/DerivedData/mods-*/Build/Products/Debug/mods.app
+xcodebuild -project mods.xcodeproj -scheme mods -configuration Debug build SYMROOT=$(pwd)/build && open build/Debug/mods.app
 
 # Clean
 xcodebuild -project mods.xcodeproj -scheme mods clean

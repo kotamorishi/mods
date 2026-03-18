@@ -19,18 +19,19 @@ macOS native markdown viewer app (view-only, no editing). Renders markdown files
 ## Build & Run Commands
 ```bash
 # Build
-xcodebuild -project mods.xcodeproj -scheme mods -configuration Debug build
+xcodebuild -project mods.xcodeproj -scheme mods -configuration Debug build SYMROOT=$(pwd)/build
 
 # Run
 open build/Debug/mods.app
-# or
-xcodebuild -project mods.xcodeproj -scheme mods -configuration Debug build && open build/Debug/mods.app
+
+# Build and run
+xcodebuild -project mods.xcodeproj -scheme mods -configuration Debug build SYMROOT=$(pwd)/build && open build/Debug/mods.app
 
 # Clean
 xcodebuild -project mods.xcodeproj -scheme mods clean
 
 # Release build
-xcodebuild -project mods.xcodeproj -scheme mods -configuration Release build
+xcodebuild -project mods.xcodeproj -scheme mods -configuration Release build SYMROOT=$(pwd)/build
 ```
 
 ## Key Conventions
