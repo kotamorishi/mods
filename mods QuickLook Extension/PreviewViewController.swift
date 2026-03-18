@@ -23,27 +23,45 @@ class PreviewViewController: NSViewController, QLPreviewingController {
         }
     }
 
-    private func buildHTML(from markdown: String) -> String {
-        let highlightJS = Self.loadResource("highlight.min", type: "js")
-        let katexJS = Self.loadResource("katex.min", type: "js")
-        let katexAutoRenderJS = Self.loadResource("katex-auto-render.min", type: "js")
-        let mermaidJS = Self.loadResource("mermaid.min", type: "js")
-        let katexCSS = Self.loadResource("katex.min", type: "css")
-        let githubCSS = Self.loadResource("github.min", type: "css")
-        let githubDarkCSS = Self.loadResource("github-dark.min", type: "css")
+    nonisolated(unsafe) private static var _resourceCache: [String: String] = [:]
 
+    private static func cachedResource(_ name: String, type: String) -> String {
+        let key = "\(name).\(type)"
+        if let cached = _resourceCache[key] { return cached }
+        guard let url = Bundle.main.url(forResource: name, withExtension: type),
+              let content = try? String(contentsOf: url, encoding: .utf8) else { return "" }
+        _resourceCache[key] = content
+        return content
+    }
+
+    private func buildHTML(from markdown: String) -> String {
         var bodyHTML = MarkdownRendererQL.renderToHTML(markdown)
         bodyHTML = MarkdownRendererQL.processAlerts(bodyHTML)
         bodyHTML = MarkdownRendererQL.processEmoji(bodyHTML)
         bodyHTML = MarkdownRendererQL.processColorChips(bodyHTML)
+
+        let needsMermaid = bodyHTML.contains("language-mermaid")
+        let needsMath = bodyHTML.contains("$") || bodyHTML.contains("language-math")
+
+        let highlightJS = Self.cachedResource("highlight.min", type: "js")
+        let githubCSS = Self.cachedResource("github.min", type: "css")
+        let githubDarkCSS = Self.cachedResource("github-dark.min", type: "css")
+
+        var scriptTags = "<script>\(highlightJS)</script>\n"
+        if needsMermaid { scriptTags += "<script>\(Self.cachedResource("mermaid.min", type: "js"))</script>\n" }
+        var cssTags = ""
+        if needsMath {
+            cssTags = "<style>\(Self.cachedResource("katex.min", type: "css"))</style>\n"
+            scriptTags += "<script>\(Self.cachedResource("katex.min", type: "js"))</script>\n"
+            scriptTags += "<script>\(Self.cachedResource("katex-auto-render.min", type: "js"))</script>\n"
+        }
 
         return """
         <!DOCTYPE html>
         <html>
         <head>
         <meta charset="utf-8">
-        <style>\(katexCSS)</style>
-        <style>
+        \(cssTags)<style>
         \(githubCSS)
         @media (prefers-color-scheme: dark) { \(githubDarkCSS) }
         :root { color-scheme: light dark; }
@@ -121,11 +139,7 @@ class PreviewViewController: NSViewController, QLPreviewingController {
         kbd { display: inline-block; padding: 3px 5px; font-size: 11px; line-height: 10px; color: #1f2328; vertical-align: middle; background-color: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px; box-shadow: inset 0 -1px 0 #d0d7de; }
         @media (prefers-color-scheme: dark) { kbd { color: #e6edf3; background-color: #161b22; border-color: #3d444d; } }
         </style>
-        <script>\(highlightJS)</script>
-        <script>\(mermaidJS)</script>
-        <script>\(katexJS)</script>
-        <script>\(katexAutoRenderJS)</script>
-        </head>
+        \(scriptTags)</head>
         <body>
         <div id="content">\(bodyHTML)</div>
         <script>
@@ -147,21 +161,22 @@ class PreviewViewController: NSViewController, QLPreviewingController {
             if (!block.classList.contains('language-math')) { hljs.highlightElement(block); }
         });
         document.querySelectorAll('input[type="checkbox"]').forEach(function(cb) { cb.disabled = true; });
-        // Math code blocks
-        document.querySelectorAll('pre code.language-math').forEach(function(block) {
-            var pre = block.parentElement;
-            var div = document.createElement('div');
-            div.className = 'math-block';
-            try { katex.render(block.textContent, div, { displayMode: true, throwOnError: false }); }
-            catch(e) { div.textContent = block.textContent; }
-            pre.replaceWith(div);
-        });
-        // Inline/block math
-        if (typeof renderMathInElement !== 'undefined') {
-            renderMathInElement(document.getElementById('content'), {
-                delimiters: [{left: '$$', right: '$$', display: true}, {left: '$', right: '$', display: false}],
-                throwOnError: false
+        // Math rendering
+        if (typeof katex !== 'undefined') {
+            document.querySelectorAll('pre code.language-math').forEach(function(block) {
+                var pre = block.parentElement;
+                var div = document.createElement('div');
+                div.className = 'math-block';
+                try { katex.render(block.textContent, div, { displayMode: true, throwOnError: false }); }
+                catch(e) { div.textContent = block.textContent; }
+                pre.replaceWith(div);
             });
+            if (typeof renderMathInElement !== 'undefined') {
+                renderMathInElement(document.getElementById('content'), {
+                    delimiters: [{left: '$$', right: '$$', display: true}, {left: '$', right: '$', display: false}],
+                    throwOnError: false
+                });
+            }
         }
         </script>
         </body>
@@ -169,13 +184,6 @@ class PreviewViewController: NSViewController, QLPreviewingController {
         """
     }
 
-    private static func loadResource(_ name: String, type: String) -> String {
-        guard let url = Bundle.main.url(forResource: name, withExtension: type),
-              let content = try? String(contentsOf: url, encoding: .utf8) else {
-            return ""
-        }
-        return content
-    }
 }
 
 // MARK: - MarkdownRendererQL
