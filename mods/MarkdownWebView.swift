@@ -5,56 +5,14 @@ struct MarkdownWebView: NSViewRepresentable {
     let markdown: String
     let zoomLevel: Double
 
-    // Cache loaded resources across renders
-    private static var resourceCache: [String: String] = [:]
+    nonisolated(unsafe) private static var cachedStyleBlock: String?
 
-    func makeNSView(context: Context) -> WKWebView {
-        let webView = WKWebView()
-        webView.autoresizingMask = [.width, .height]
-        let html = buildHTML()
-        webView.loadHTMLString(html, baseURL: nil)
-        return webView
-    }
-
-    func updateNSView(_ webView: WKWebView, context: Context) {
-        webView.pageZoom = zoomLevel
-    }
-
-    private func buildHTML() -> String {
-        let bodyHTML = MarkdownRenderer.renderToHTML(markdown)
-
-        // Detect which optional libraries are needed
-        let needsMermaid = bodyHTML.contains("language-mermaid")
-        let needsMath = bodyHTML.contains("$") || bodyHTML.contains("language-math")
-
-        // Always-loaded resources
-        let highlightJS = Self.cachedResource("highlight.min", type: "js")
-        let githubCSS = Self.cachedResource("github.min", type: "css")
-        let githubDarkCSS = Self.cachedResource("github-dark.min", type: "css")
-
-        // Conditionally loaded resources
-        let mermaidJS = needsMermaid ? Self.cachedResource("mermaid.min", type: "js") : ""
-        let katexJS = needsMath ? Self.cachedResource("katex.min", type: "js") : ""
-        let katexAutoRenderJS = needsMath ? Self.cachedResource("katex-auto-render.min", type: "js") : ""
-        let katexCSS = needsMath ? Self.cachedResource("katex.min", type: "css") : ""
-
-        // Build script tags only for loaded libraries
-        var scriptTags = "<script>\(highlightJS)</script>\n"
-        if needsMermaid { scriptTags += "<script>\(mermaidJS)</script>\n" }
-        if needsMath {
-            scriptTags += "<script>\(katexJS)</script>\n"
-            scriptTags += "<script>\(katexAutoRenderJS)</script>\n"
-        }
-
-        var cssTags = ""
-        if needsMath { cssTags = "<style>\(katexCSS)</style>\n" }
-
-        return """
-        <!DOCTYPE html>
-        <html>
-        <head>
-        <meta charset="utf-8">
-        \(cssTags)<style>
+    private static func styleBlock() -> String {
+        if let cached = cachedStyleBlock { return cached }
+        let githubCSS = cachedResource("github.min", type: "css")
+        let githubDarkCSS = cachedResource("github-dark.min", type: "css")
+        let block = """
+        <style>
         \(githubCSS)
         @media (prefers-color-scheme: dark) { \(githubDarkCSS) }
         :root { color-scheme: light dark; }
@@ -74,7 +32,6 @@ struct MarkdownWebView: NSViewRepresentable {
             body { color: #e6edf3; background-color: #0d1117; }
         }
 
-        /* Headings */
         h1, h2, h3, h4, h5, h6 { margin-top: 24px; margin-bottom: 16px; font-weight: 600; line-height: 1.25; }
         h1 { font-size: 2em; padding-bottom: 0.3em; border-bottom: 1px solid #d1d9e0; }
         h2 { font-size: 1.5em; padding-bottom: 0.3em; border-bottom: 1px solid #d1d9e0; }
@@ -90,18 +47,15 @@ struct MarkdownWebView: NSViewRepresentable {
         @media (prefers-color-scheme: dark) { a { color: #4493f8; } }
         img { max-width: 100%; box-sizing: border-box; }
 
-        /* Code */
         code, tt { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace; font-size: 85%; }
         :not(pre) > code { padding: 0.2em 0.4em; margin: 0; border-radius: 6px; background-color: rgba(175, 184, 193, 0.2); }
         pre { padding: 16px; overflow: auto; font-size: 85%; line-height: 1.45; border-radius: 6px; background-color: #f6f8fa; margin-bottom: 16px; }
         pre code { padding: 0; margin: 0; background-color: transparent; border: 0; font-size: 100%; }
         @media (prefers-color-scheme: dark) { pre { background-color: #161b22; } }
 
-        /* Blockquotes */
         blockquote { margin: 0 0 16px 0; padding: 0 1em; color: #656d76; border-left: 0.25em solid #d0d7de; }
         @media (prefers-color-scheme: dark) { blockquote { color: #8b949e; border-left-color: #3d444d; } }
 
-        /* Lists */
         ul, ol { margin-top: 0; margin-bottom: 16px; padding-left: 2em; }
         ul { list-style-type: disc; }
         ul ul { list-style-type: circle; }
@@ -113,7 +67,6 @@ struct MarkdownWebView: NSViewRepresentable {
         ul.contains-task-list { list-style-type: none; padding-left: 1.6em; }
         ul.contains-task-list li input[type="checkbox"] { margin-right: 0.5em; }
 
-        /* Tables */
         table { border-spacing: 0; border-collapse: collapse; width: max-content; max-width: 100%; overflow: auto; margin-bottom: 16px; display: block; }
         table th { font-weight: 600; padding: 6px 13px; border: 1px solid #d0d7de; }
         table td { padding: 6px 13px; border: 1px solid #d0d7de; }
@@ -127,7 +80,6 @@ struct MarkdownWebView: NSViewRepresentable {
 
         .color-chip { display: inline-block; width: 0.9em; height: 0.9em; border-radius: 50%; margin-right: 0.3em; vertical-align: middle; border: 1px solid rgba(0,0,0,0.15); }
 
-        /* Alerts */
         .markdown-alert { padding: 8px 16px; margin-bottom: 16px; border-left: 0.25em solid; border-radius: 6px; }
         .markdown-alert-title { display: flex; align-items: center; font-weight: 600; margin-bottom: 4px; }
         .markdown-alert-note { border-left-color: #0969da; }
@@ -149,6 +101,46 @@ struct MarkdownWebView: NSViewRepresentable {
         kbd { display: inline-block; padding: 3px 5px; font-size: 11px; line-height: 10px; color: #1f2328; vertical-align: middle; background-color: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px; box-shadow: inset 0 -1px 0 #d0d7de; }
         @media (prefers-color-scheme: dark) { kbd { color: #e6edf3; background-color: #161b22; border-color: #3d444d; box-shadow: inset 0 -1px 0 #3d444d; } }
         </style>
+        """
+        cachedStyleBlock = block
+        return block
+    }
+
+    func makeNSView(context: Context) -> WKWebView {
+        let webView = WKWebView()
+        webView.autoresizingMask = [.width, .height]
+        let html = buildHTML()
+        webView.loadHTMLString(html, baseURL: nil)
+        return webView
+    }
+
+    func updateNSView(_ webView: WKWebView, context: Context) {
+        webView.pageZoom = zoomLevel
+    }
+
+    private func buildHTML() -> String {
+        let bodyHTML = MarkdownRenderer.renderToHTML(markdown)
+
+        // Detect which optional libraries are needed
+        let needsMermaid = bodyHTML.contains("language-mermaid")
+        let needsMath = bodyHTML.contains("$") || bodyHTML.contains("language-math")
+
+        // Build script/css tags — only include heavy libs when needed
+        var scriptTags = "<script>\(Self.cachedResource("highlight.min", type: "js"))</script>\n"
+        if needsMermaid { scriptTags += "<script>\(Self.cachedResource("mermaid.min", type: "js"))</script>\n" }
+        var cssTags = ""
+        if needsMath {
+            cssTags = "<style>\(Self.cachedResource("katex.min", type: "css"))</style>\n"
+            scriptTags += "<script>\(Self.cachedResource("katex.min", type: "js"))</script>\n"
+            scriptTags += "<script>\(Self.cachedResource("katex-auto-render.min", type: "js"))</script>\n"
+        }
+
+        return """
+        <!DOCTYPE html>
+        <html>
+        <head>
+        <meta charset="utf-8">
+        \(cssTags)\(Self.styleBlock())
         \(scriptTags)</head>
         <body>
         <div id="content">\(bodyHTML)</div>
