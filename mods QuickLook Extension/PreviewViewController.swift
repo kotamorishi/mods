@@ -75,7 +75,7 @@ class PreviewViewController: NSViewController, QLPreviewingController, WKNavigat
         \(githubCSS)
         @media (prefers-color-scheme: dark) { \(githubDarkCSS) }
         :root { color-scheme: light dark; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.5; word-wrap: break-word; padding: 24px; max-width: 900px; margin: 0 auto; color: #1f2328; background-color: #ffffff; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.5; word-wrap: break-word; padding: 32px; max-width: 900px; margin: 0 auto; color: #1f2328; background-color: #ffffff; }
         @media (prefers-color-scheme: dark) { body { color: #e6edf3; background-color: #0d1117; } }
         h1, h2, h3, h4, h5, h6 { margin-top: 24px; margin-bottom: 16px; font-weight: 600; line-height: 1.25; }
         h1 { font-size: 2em; padding-bottom: 0.3em; border-bottom: 1px solid #d1d9e0; }
