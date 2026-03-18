@@ -103,9 +103,16 @@ struct MarkdownRenderer {
         options: []
     )
 
+    /// Quick check for :shortcode: pattern — cheaper than loading the full emoji map
+    private static let emojiQuickCheck = try! NSRegularExpression(
+        pattern: ":[a-z0-9_+-]{1,50}:",
+        options: []
+    )
+
     private static func processEmoji(_ html: String) -> String {
-        // Fast check: no colon means no emoji shortcodes possible
-        guard html.contains(":") else { return html }
+        // Fast pre-check: skip emoji map loading if no :shortcode: pattern exists
+        let range = NSRange(html.startIndex..., in: html)
+        guard emojiQuickCheck.firstMatch(in: html, range: range) != nil else { return html }
         let map = loadEmojiMap()
         if map.isEmpty { return html }
 
