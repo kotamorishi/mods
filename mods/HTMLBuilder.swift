@@ -24,7 +24,7 @@ enum HTMLBuilder {
     nonisolated(unsafe) private static var _sharedConfig: WKWebViewConfiguration?
 
     /// Shared configuration with highlight.js + post-processing injected via WKUserScript.
-    static func webViewConfiguration() -> WKWebViewConfiguration {
+    @MainActor static func webViewConfiguration() -> WKWebViewConfiguration {
         if let config = _sharedConfig { return config }
         let config = WKWebViewConfiguration()
         let controller = WKUserContentController()
