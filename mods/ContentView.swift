@@ -89,6 +89,16 @@ struct StartView: View {
             return
         }
 
-        self.markdown = (try? String(contentsOf: url, encoding: .utf8)) ?? "Failed to load file."
+        self.markdown = Self.readFileWithFallback(url: url)
+    }
+
+    private static func readFileWithFallback(url: URL) -> String {
+        let encodings: [String.Encoding] = [.utf8, .isoLatin1, .shiftJIS, .utf16, .ascii]
+        for encoding in encodings {
+            if let content = try? String(contentsOf: url, encoding: encoding) {
+                return content
+            }
+        }
+        return "# Unable to read file\n\nThis file could not be decoded as text."
     }
 }

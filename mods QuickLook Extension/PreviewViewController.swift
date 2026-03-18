@@ -34,13 +34,23 @@ class PreviewViewController: NSViewController, QLPreviewingController, WKNavigat
                 handler(nil)
                 return
             }
-            let markdown = try String(contentsOf: url, encoding: .utf8)
+            let markdown = Self.readFileWithFallback(url: url)
             let html = buildHTML(from: markdown)
             webView.loadHTMLString(html, baseURL: nil)
             handler(nil)
         } catch {
             handler(error)
         }
+    }
+
+    private static func readFileWithFallback(url: URL) -> String {
+        let encodings: [String.Encoding] = [.utf8, .isoLatin1, .shiftJIS, .utf16, .ascii]
+        for encoding in encodings {
+            if let content = try? String(contentsOf: url, encoding: encoding) {
+                return content
+            }
+        }
+        return "# Unable to read file\n\nThis file could not be decoded as text."
     }
 
     private static let inlineMathRegex = try! NSRegularExpression(pattern: "\\$[^\\s$].*?[^\\s$]\\$|\\$[^\\s$]\\$", options: [])
