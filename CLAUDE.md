@@ -18,20 +18,23 @@ macOS native markdown viewer app (view-only, no editing). Renders markdown files
 
 ## Build & Run Commands
 ```bash
-# Build
-xcodebuild -project mods.xcodeproj -scheme mods -configuration Debug build SYMROOT=$(pwd)/build
+# Build (with code signing for QuickLook extension)
+xcodebuild -project mods.xcodeproj -scheme mods -configuration Debug build SYMROOT=$(pwd)/build DEVELOPMENT_TEAM=7M75V64ZE5 CODE_SIGN_IDENTITY="Apple Development"
 
 # Run
 open build/Debug/mods.app
 
 # Build and run
-xcodebuild -project mods.xcodeproj -scheme mods -configuration Debug build SYMROOT=$(pwd)/build && open build/Debug/mods.app
+xcodebuild -project mods.xcodeproj -scheme mods -configuration Debug build SYMROOT=$(pwd)/build DEVELOPMENT_TEAM=7M75V64ZE5 CODE_SIGN_IDENTITY="Apple Development" && open build/Debug/mods.app
 
 # Clean
 xcodebuild -project mods.xcodeproj -scheme mods clean
 
 # Release build
-xcodebuild -project mods.xcodeproj -scheme mods -configuration Release build SYMROOT=$(pwd)/build
+xcodebuild -project mods.xcodeproj -scheme mods -configuration Release build SYMROOT=$(pwd)/build DEVELOPMENT_TEAM=7M75V64ZE5 CODE_SIGN_IDENTITY="Apple Development"
+
+# Install to /Applications (required for QuickLook extension registration)
+cp -R build/Debug/mods.app /Applications/mods.app
 ```
 
 ## Key Conventions
