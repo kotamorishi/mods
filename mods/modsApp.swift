@@ -58,7 +58,7 @@ struct WelcomeView: View {
             .frame(minWidth: 400, minHeight: 300)
             .focusedSceneValue(\.openFileAction, openFile)
             .onOpenURL { url in
-                openWindow(value: url)
+                openWindow(value: Self.resolveURL(url))
             }
             .onDrop(of: [.fileURL], isTargeted: nil) { providers in
                 guard let provider = providers.first else { return false }
@@ -87,6 +87,14 @@ struct WelcomeView: View {
                 openWindow(value: url)
             }
         }
+    }
+
+    /// Convert mods:// URLs to file URLs. e.g. mods:///Users/me/doc.md → file:///Users/me/doc.md
+    private static func resolveURL(_ url: URL) -> URL {
+        if url.scheme == "mods" {
+            return URL(fileURLWithPath: url.path)
+        }
+        return url
     }
 }
 
