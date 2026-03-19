@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		8767C27E2F6B510100C4418C /* CMarkGFM in Frameworks */ = {isa = PBXBuildFile; productRef = B10000E1 /* CMarkGFM */; };
 		87DE38EE2F6B40AD00A708CA /* CMarkGFM in Frameworks */ = {isa = PBXBuildFile; productRef = 87DE38ED2F6B40AD00A708CA /* CMarkGFM */; };
 		B1000021 /* mods QuickLook Extension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = B1000002 /* mods QuickLook Extension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
@@ -89,6 +90,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8767C27E2F6B510100C4418C /* CMarkGFM in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
