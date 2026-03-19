@@ -96,7 +96,7 @@ struct MarkdownRenderer {
             </div>
             """
 
-            let swiftRange = Range(fullRange, in: result)!
+            guard let swiftRange = Range(fullRange, in: result) else { continue }
             result.replaceSubrange(swiftRange, with: placeholder)
         }
 
@@ -270,8 +270,7 @@ struct MarkdownRenderer {
             if isExcluded { continue }
 
             let name = nsHtml.substring(with: match.range(at: 1))
-            if let emoji = map[name] {
-                let swiftRange = Range(matchRange, in: result)!
+            if let emoji = map[name], let swiftRange = Range(matchRange, in: result) {
                 result.replaceSubrange(swiftRange, with: emoji)
             }
         }
