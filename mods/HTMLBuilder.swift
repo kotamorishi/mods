@@ -271,6 +271,35 @@ enum HTMLBuilder {
         });
     })();
 
+    // Inline TOC sidebar (for QuickLook and standalone WebView)
+    (function() {
+        var headings = document.querySelectorAll('#content h1, #content h2, #content h3, #content h4, #content h5, #content h6');
+        if (headings.length < 2) return;
+        var toc = document.createElement('div');
+        toc.id = '__mods-toc-sidebar';
+        var header = document.createElement('div');
+        header.className = '__mods-toc-header';
+        header.textContent = 'OUTLINE';
+        toc.appendChild(header);
+        var list = document.createElement('div');
+        list.className = '__mods-toc-list';
+        headings.forEach(function(h) {
+            var level = parseInt(h.tagName.charAt(1));
+            var item = document.createElement('div');
+            item.className = '__mods-toc-item';
+            item.style.paddingLeft = ((level - 1) * 10 + 12) + 'px';
+            item.textContent = h.textContent.trim();
+            if (level <= 1) { item.style.fontWeight = '600'; }
+            if (level > 2) { item.style.opacity = '0.7'; }
+            item.addEventListener('click', function() {
+                h.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+            list.appendChild(item);
+        });
+        toc.appendChild(list);
+        document.body.appendChild(toc);
+    })();
+
     // Find bar
     (function() {
         var bar = document.createElement('div');
