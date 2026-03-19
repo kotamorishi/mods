@@ -234,6 +234,10 @@ struct FileView: View {
                 }
                 return true
             }
+            .onOpenURL { url in
+                let resolved = url.scheme == "mods" ? URL(fileURLWithPath: url.path) : url
+                openWindow(value: resolved)
+            }
             .onDisappear {
                 fileWatcher?.stop()
             }
