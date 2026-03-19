@@ -218,29 +218,31 @@ struct FileView: View {
                     }
                     .help("Toggle Outline")
                 }
-                ToolbarItemGroup {
-                    Button {
-                        zoomLevel = max(0.25, zoomLevel - 0.1)
-                    } label: {
-                        Image(systemName: "minus.magnifyingglass")
-                    }
-                    .keyboardShortcut("-", modifiers: .command)
+                ToolbarItem {
+                    ControlGroup {
+                        Button {
+                            zoomLevel = max(0.25, zoomLevel - 0.1)
+                        } label: {
+                            Image(systemName: "minus.magnifyingglass")
+                        }
+                        .keyboardShortcut("-", modifiers: .command)
 
-                    Button {
-                        zoomLevel = 1.0
-                    } label: {
-                        Text("\(Int(zoomLevel * 100))%")
-                            .monospacedDigit()
-                            .frame(minWidth: 40)
-                    }
-                    .keyboardShortcut("0", modifiers: .command)
+                        Button {
+                            zoomLevel = 1.0
+                        } label: {
+                            Text("\(Int(zoomLevel * 100))%")
+                                .monospacedDigit()
+                                .frame(minWidth: 40)
+                        }
+                        .keyboardShortcut("0", modifiers: .command)
 
-                    Button {
-                        zoomLevel = min(5.0, zoomLevel + 0.1)
-                    } label: {
-                        Image(systemName: "plus.magnifyingglass")
+                        Button {
+                            zoomLevel = min(5.0, zoomLevel + 0.1)
+                        } label: {
+                            Image(systemName: "plus.magnifyingglass")
+                        }
+                        .keyboardShortcut("+", modifiers: .command)
                     }
-                    .keyboardShortcut("+", modifiers: .command)
                 }
             }
             .focusedSceneValue(\.openFileAction, openFile)
