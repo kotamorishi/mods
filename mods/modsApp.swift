@@ -145,13 +145,13 @@ struct FileView: View {
     @Environment(\.openWindow) private var openWindow
     @State private var fileURL: URL?
     @State private var markdown: String = ""
-    @State private var zoomLevel: Double = 1.0
+    @AppStorage("zoomLevel") private var zoomLevel: Double = 1.0
     @State private var fileWatcher: FileWatcher?
     @State private var findTrigger: Int = 0
     @State private var printTrigger: Int = 0
     @State private var exportPDFTrigger: Int = 0
     @State private var tocScrollTarget: String = ""
-    @State private var showTOC: Bool = false
+    @AppStorage("showTOC") private var showTOC: Bool = false
 
     private var headings: [(level: Int, text: String)] {
         markdown.components(separatedBy: "\n")
