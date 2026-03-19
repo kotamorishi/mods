@@ -2,7 +2,6 @@ import Foundation
 import CMarkGFM
 
 struct MarkdownRenderer {
-    nonisolated(unsafe) private static var emojiMap: [String: String]? = nil
 
     /// Thread-safe one-time registration of cmark-gfm extensions.
     /// Uses static let dispatch_once pattern to guarantee single execution.
@@ -217,16 +216,18 @@ struct MarkdownRenderer {
 
     // MARK: - Emoji
 
-    private static func loadEmojiMap() -> [String: String] {
-        if let cached = emojiMap { return cached }
-        guard let url = Bundle.main.url(forResource: "emoji", withExtension: "json"),
+    /// Emoji map loaded once via dispatch_once pattern.
+    private static let emojiMap: [String: String] = {
+        guard let url = Bundle.main.url(forResource: "emoji", withExtension: "json")
+                ?? HTMLBuilder._parentAppBundle?.url(forResource: "emoji", withExtension: "json"),
               let data = try? Data(contentsOf: url),
               let map = try? JSONDecoder().decode([String: String].self, from: data) else {
             return [:]
         }
-        emojiMap = map
         return map
-    }
+    }()
+
+    private static func loadEmojiMap() -> [String: String] { emojiMap }
 
     // Match :shortcode: but not inside HTML tags or <code> blocks
     private static let emojiRegex = try! NSRegularExpression(

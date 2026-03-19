@@ -1,44 +1,36 @@
 import Foundation
 import WebKit
+import os
 
 /// Shared HTML template builder used by both the main app and QuickLook extension.
 /// Handles resource caching, CSS/JS assembly, WKWebView configuration, and content detection.
 enum HTMLBuilder {
     // MARK: - Resource Cache
 
-    nonisolated(unsafe) private static var _resourceCache: [String: String] = [:]
+    /// Thread-safe resource cache protected by unfair lock.
+    private static let _cacheLock = OSAllocatedUnfairLock<[String: String]>(initialState: [:])
 
-    nonisolated(unsafe) private static var _parentAppBundle: Bundle?
-
-    /// Resolve the parent app's bundle when running as an extension.
-    /// Structure: mods.app/Contents/PlugIns/ext.appex/Contents/MacOS/ext
-    /// Parent resources: mods.app/Contents/Resources/
-    private static func parentAppBundle() -> Bundle? {
-        if let cached = _parentAppBundle { return cached }
+    static let _parentAppBundle: Bundle? = {
         let extURL = Bundle.main.bundleURL
-        // Go up from ext.appex to PlugIns/ to Contents/ to mods.app/
         let appURL = extURL
-            .deletingLastPathComponent()  // PlugIns/
-            .deletingLastPathComponent()  // Contents/
-            .deletingLastPathComponent()  // mods.app/
-        if let bundle = Bundle(url: appURL) {
-            _parentAppBundle = bundle
-            return bundle
-        }
-        return nil
-    }
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        return Bundle(url: appURL)
+    }()
 
     static func cachedResource(_ name: String, type: String) -> String {
         let key = "\(name).\(type)"
-        if let cached = _resourceCache[key] { return cached }
-        // Try own bundle first, then parent app bundle (for extensions sharing resources)
-        let url = Bundle.main.url(forResource: name, withExtension: type)
-            ?? parentAppBundle()?.url(forResource: name, withExtension: type)
-        guard let url, let content = try? String(contentsOf: url, encoding: .utf8) else {
-            return ""
+        return _cacheLock.withLock { cache in
+            if let cached = cache[key] { return cached }
+            let url = Bundle.main.url(forResource: name, withExtension: type)
+                ?? _parentAppBundle?.url(forResource: name, withExtension: type)
+            guard let url, let content = try? String(contentsOf: url, encoding: .utf8) else {
+                return ""
+            }
+            cache[key] = content
+            return content
         }
-        _resourceCache[key] = content
-        return content
     }
 
     // MARK: - WKWebView Configuration
@@ -54,10 +46,9 @@ enum HTMLBuilder {
         let config = WKWebViewConfiguration()
 
         // Security: disable JS from page content — only WKUserScript JS can run.
-        // This prevents <script> tags in markdown from executing.
         config.defaultWebpagePreferences.allowsContentJavaScript = false
 
-        // Security: disable link previews (force-touch/3D-touch on links)
+        // Security: disable fullscreen element capability
         config.preferences.isElementFullscreenEnabled = false
 
         let controller = WKUserContentController()
@@ -73,15 +64,9 @@ enum HTMLBuilder {
         return config
     }
 
-    // MARK: - Cached HTML Fragments
+    // MARK: - Cached HTML Fragments (thread-safe via static let)
 
-    nonisolated(unsafe) private static var _styleBlock: String?
-    nonisolated(unsafe) private static var _baseHead: String?
-    nonisolated(unsafe) private static var _mermaidScript: String?
-    nonisolated(unsafe) private static var _katexHead: String?
-
-    static func styleBlock() -> String {
-        if let cached = _styleBlock { return cached }
+    private static let _styleBlock: String = {
         let githubCSS = cachedResource("github.min", type: "css")
         let githubDarkCSS = cachedResource("github-dark.min", type: "css")
         let modsCSS = cachedResource("mods", type: "css")
@@ -96,30 +81,27 @@ enum HTMLBuilder {
         if !userCSS.isEmpty {
             block += "\n<style>\(userCSS)</style>"
         }
-        _styleBlock = block
         return block
-    }
+    }()
+
+    static func styleBlock() -> String { _styleBlock }
 
     /// Load user custom CSS from Application Support/mods/custom.css if it exists.
     /// Uses Application Support (sandbox-safe) with fallback to ~/.config/mods/.
     private static func loadUserCSS() -> String {
-        // Primary: ~/Library/Application Support/mods/custom.css (sandbox-safe)
         if let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
             let primaryURL = appSupport.appendingPathComponent("mods/custom.css")
             if let css = try? String(contentsOf: primaryURL, encoding: .utf8) {
                 return css
             }
         }
-        // Fallback: ~/.config/mods/custom.css (non-sandboxed dev builds)
         let home = FileManager.default.homeDirectoryForCurrentUser
         let fallbackURL = home.appendingPathComponent(".config/mods/custom.css")
         return (try? String(contentsOf: fallbackURL, encoding: .utf8)) ?? ""
     }
 
-    /// Shell page head: CSS only (JS via WKUserScript).
-    static func baseHead() -> String {
-        if let cached = _baseHead { return cached }
-        let head = """
+    private static let _baseHead: String = {
+        """
         <!DOCTYPE html>
         <html>
         <head>
@@ -131,27 +113,25 @@ enum HTMLBuilder {
         <body>
         <div id="content">
         """
-        _baseHead = head
-        return head
-    }
+    }()
 
-    static func mermaidScript() -> String {
-        if let cached = _mermaidScript { return cached }
-        let s = "<script>\(cachedResource("mermaid.min", type: "js"))</script>\n"
-        _mermaidScript = s
-        return s
-    }
+    static func baseHead() -> String { _baseHead }
 
-    static func katexHead() -> String {
-        if let cached = _katexHead { return cached }
-        let s = """
+    private static let _mermaidScript: String = {
+        "<script>\(cachedResource("mermaid.min", type: "js"))</script>\n"
+    }()
+
+    static func mermaidScript() -> String { _mermaidScript }
+
+    private static let _katexHead: String = {
+        """
         <style>\(cachedResource("katex.min", type: "css"))</style>
         <script>\(cachedResource("katex.min", type: "js"))</script>
         <script>\(cachedResource("katex-auto-render.min", type: "js"))</script>
         """
-        _katexHead = s
-        return s
-    }
+    }()
+
+    static func katexHead() -> String { _katexHead }
 
     // MARK: - Post-Processing Script
 
@@ -176,7 +156,6 @@ enum HTMLBuilder {
         document.querySelectorAll('input[type="checkbox"]').forEach(function(cb) { cb.disabled = true; });
         // Copy button on code blocks
         function __modsCopyText(text, btn) {
-            // Try modern API first, fall back to legacy execCommand
             if (navigator.clipboard && navigator.clipboard.writeText) {
                 navigator.clipboard.writeText(text).then(function() {
                     btn.textContent = 'Copied!';
@@ -304,7 +283,6 @@ enum HTMLBuilder {
         };
 
         window.__modsFindHighlight = function() {
-            // Remove previous highlights
             document.querySelectorAll('.__mods-highlight').forEach(function(el) {
                 el.replaceWith(el.textContent);
             });
@@ -338,7 +316,6 @@ enum HTMLBuilder {
                 node.parentNode.replaceChild(frag, node);
             });
             document.getElementById('__mods-find-count').textContent = count + ' found';
-            // Scroll to first match
             var first = document.querySelector('.__mods-highlight');
             if (first) { first.scrollIntoView({ block: 'center' }); }
         };
