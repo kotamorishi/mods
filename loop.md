@@ -157,18 +157,25 @@ Go back to step 1. Stop after 3 cycles per session unless instructed otherwise.
 | 60 | Feature | Floating back-to-top button for long documents |
 | 61 | Feature | Custom CSS support via ~/.config/mods/custom.css |
 | 62 | Bug | Fix custom CSS path for sandboxed App Store builds |
+| 63 | Quality | Final Release build verification and loop.md update |
+| 64 | Quality | Clean up obsolete files, verify archive build |
+| 65 | UX | Show file directory path in status bar |
+| 66 | UX | Remove irrelevant context menu items from WebView |
+| 67 | UX | Add Cmd+Shift+T keyboard shortcut for TOC |
+| 68 | UX | Add Cmd+0 to reset zoom to 100% |
+| 69 | Quality | Extract duplicated NSOpenPanel into FilePickerHelper |
+| 70 | Quality | Fix FilePickerHelper MainActor warning, final Release check |
 
 ## Backlog
 
-1. **Homebrew formula** — `brew install --cask mods` for easy installation
+1. **Homebrew formula** — `brew install --cask mods`
 2. **Test coverage** — unit tests for MarkdownRenderer, HTMLBuilder
-3. **Syntax theme selection** — light/dark highlight.js themes
 
 ## Stats
 
 - **App size**: 6.2 MB (Release)
-- **Source**: 1323 lines Swift, 6 files + 1 QL extension
+- **Source**: 1352 lines Swift, 6 files + 1 QL extension
 - **Build warnings**: 0
-- **Commits**: 88
-- **Improvement cycles**: 63
-- **Features**: 25
+- **Commits**: 96
+- **Improvement cycles**: 70
+- **Features**: 26

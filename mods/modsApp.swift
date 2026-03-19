@@ -361,7 +361,7 @@ struct TOCView: View {
 
 /// Shared file picker for markdown files.
 enum FilePickerHelper {
-    static func runOpenPanel() -> [URL] {
+    @MainActor static func runOpenPanel() -> [URL] {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [
             UTType(filenameExtension: "md") ?? .plainText,
