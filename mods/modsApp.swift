@@ -179,14 +179,13 @@ struct FileView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 0) {
-                MarkdownWebView(markdown: markdown, zoomLevel: zoomLevel, findTrigger: findTrigger, printTrigger: printTrigger, exportPDFTrigger: exportPDFTrigger, tocScrollTarget: tocScrollTarget)
-
                 if showTOC && !headings.isEmpty {
-                    Divider()
                     TOCSidebar(headings: headings) { heading in
                         tocScrollTarget = heading
                     }
+                    Divider()
                 }
+                MarkdownWebView(markdown: markdown, zoomLevel: zoomLevel, findTrigger: findTrigger, printTrigger: printTrigger, exportPDFTrigger: exportPDFTrigger, tocScrollTarget: tocScrollTarget)
             }
             if !markdown.isEmpty {
                 HStack {
@@ -210,7 +209,7 @@ struct FileView: View {
         .frame(minWidth: 400, minHeight: 300)
         .navigationTitle(fileURL?.lastPathComponent ?? "mods")
             .toolbar {
-                ToolbarItem {
+                ToolbarItem(placement: .navigation) {
                     Button {
                         showTOC.toggle()
                     } label: {
@@ -218,14 +217,13 @@ struct FileView: View {
                     }
                     .help("Toggle Outline")
                 }
-                ToolbarItem {
-                    HStack(spacing: 4) {
+                ToolbarItem(placement: .primaryAction) {
+                    HStack(spacing: 2) {
                         Button {
                             zoomLevel = max(0.25, zoomLevel - 0.1)
                         } label: {
                             Image(systemName: "minus.magnifyingglass")
                         }
-                        .keyboardShortcut("-", modifiers: .command)
 
                         Button {
                             zoomLevel = 1.0
@@ -234,14 +232,12 @@ struct FileView: View {
                                 .monospacedDigit()
                                 .frame(minWidth: 40)
                         }
-                        .keyboardShortcut("0", modifiers: .command)
 
                         Button {
                             zoomLevel = min(5.0, zoomLevel + 0.1)
                         } label: {
                             Image(systemName: "plus.magnifyingglass")
                         }
-                        .keyboardShortcut("+", modifiers: .command)
                     }
                 }
             }
