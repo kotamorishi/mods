@@ -8,6 +8,7 @@ struct modsApp: App {
     @FocusedValue(\.findAction) private var findAction
     @FocusedValue(\.printAction) private var printAction
     @FocusedValue(\.exportPDFAction) private var exportPDFAction
+    @FocusedValue(\.tocAction) private var tocAction
 
     var body: some Scene {
         // Welcome window (no file)
@@ -36,6 +37,10 @@ struct modsApp: App {
                     findAction?()
                 }
                 .keyboardShortcut("f", modifiers: .command)
+                Button("Table of Contents") {
+                    tocAction?()
+                }
+                .keyboardShortcut("t", modifiers: [.command, .shift])
             }
             CommandGroup(replacing: .printItem) {
                 Button("Print...") {
@@ -228,6 +233,7 @@ struct FileView: View {
             .focusedSceneValue(\.findAction, performFind)
             .focusedSceneValue(\.printAction, performPrint)
             .focusedSceneValue(\.exportPDFAction, performExportPDF)
+            .focusedSceneValue(\.tocAction, toggleTOC)
             .onDrop(of: [.fileURL], isTargeted: nil) { providers in
                 guard let provider = providers.first else { return false }
                 _ = provider.loadObject(ofClass: URL.self) { url, _ in
@@ -254,6 +260,7 @@ struct FileView: View {
     private func performFind() { findTrigger += 1 }
     private func performPrint() { printTrigger += 1 }
     private func performExportPDF() { exportPDFTrigger += 1 }
+    private func toggleTOC() { showTOC.toggle() }
 
     private func openFile() {
         let panel = NSOpenPanel()
@@ -319,6 +326,10 @@ struct ExportPDFActionKey: FocusedValueKey {
     typealias Value = () -> Void
 }
 
+struct TOCActionKey: FocusedValueKey {
+    typealias Value = () -> Void
+}
+
 extension FocusedValues {
     var openFileAction: (() -> Void)? {
         get { self[OpenFileActionKey.self] }
@@ -335,6 +346,10 @@ extension FocusedValues {
     var exportPDFAction: (() -> Void)? {
         get { self[ExportPDFActionKey.self] }
         set { self[ExportPDFActionKey.self] = newValue }
+    }
+    var tocAction: (() -> Void)? {
+        get { self[TOCActionKey.self] }
+        set { self[TOCActionKey.self] = newValue }
     }
 }
 
