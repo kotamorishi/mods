@@ -9,6 +9,23 @@ struct MarkdownWebView: NSViewRepresentable {
     let exportPDFTrigger: Int
     let tocScrollTarget: String
 
+    /// WKWebView subclass that filters irrelevant context menu items.
+    class ModsWebView: WKWebView {
+        override func willOpenMenu(_ menu: NSMenu, with event: NSEvent) {
+            let removeSelectors: Set<String> = [
+                "reload:", "goBack:", "goForward:",
+                "openFrameInNewWindow:", "openLinkInNewWindow:",
+            ]
+            menu.items.removeAll { item in
+                if let action = item.action {
+                    return removeSelectors.contains(NSStringFromSelector(action))
+                }
+                return false
+            }
+            super.willOpenMenu(menu, with: event)
+        }
+    }
+
     class Coordinator: NSObject, WKNavigationDelegate {
         var currentMarkdown: String = ""
         var isInitialLoadDone = false
@@ -45,12 +62,13 @@ struct MarkdownWebView: NSViewRepresentable {
                 webView.loadHTMLString(lastHTML, baseURL: nil)
             }
         }
+
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     func makeNSView(context: Context) -> WKWebView {
-        let webView = WKWebView(frame: .zero, configuration: HTMLBuilder.webViewConfiguration())
+        let webView = ModsWebView(frame: .zero, configuration: HTMLBuilder.webViewConfiguration())
         webView.autoresizingMask = [.width, .height]
         webView.navigationDelegate = context.coordinator
         context.coordinator.currentMarkdown = markdown
