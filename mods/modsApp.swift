@@ -147,7 +147,8 @@ struct FileView: View {
     @State private var markdown: String = ""
     @AppStorage("zoomLevel") private var zoomLevel: Double = 1.0
     @State private var fileWatcher: FileWatcher?
-    @State private var findTrigger: Int = 0
+    @State private var searchText: String = ""
+    @State private var showSearch: Bool = false
     @State private var printTrigger: Int = 0
     @State private var exportPDFTrigger: Int = 0
     @State private var tocScrollTarget: String = ""
@@ -185,7 +186,7 @@ struct FileView: View {
                     }
                     Divider()
                 }
-                MarkdownWebView(markdown: markdown, zoomLevel: zoomLevel, findTrigger: findTrigger, printTrigger: printTrigger, exportPDFTrigger: exportPDFTrigger, tocScrollTarget: tocScrollTarget)
+                MarkdownWebView(markdown: markdown, zoomLevel: zoomLevel, searchText: searchText, printTrigger: printTrigger, exportPDFTrigger: exportPDFTrigger, tocScrollTarget: tocScrollTarget)
             }
             if !markdown.isEmpty {
                 HStack {
@@ -240,6 +241,31 @@ struct FileView: View {
                         }
                     }
                 }
+                ToolbarItem(placement: .primaryAction) {
+                    if showSearch {
+                        HStack(spacing: 4) {
+                            TextField("Search...", text: $searchText)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 180)
+                                .onSubmit { /* Enter does nothing extra */ }
+                            Button {
+                                showSearch = false
+                                searchText = ""
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    } else {
+                        Button {
+                            showSearch = true
+                        } label: {
+                            Image(systemName: "magnifyingglass")
+                        }
+                        .help("Search")
+                    }
+                }
             }
             .focusedSceneValue(\.openFileAction, openFile)
             .focusedSceneValue(\.findAction, performFind)
@@ -269,7 +295,7 @@ struct FileView: View {
             }
     }
 
-    private func performFind() { findTrigger += 1 }
+    private func performFind() { showSearch.toggle() }
     private func performPrint() { printTrigger += 1 }
     private func performExportPDF() { exportPDFTrigger += 1 }
     private func toggleTOC() { showTOC.toggle() }

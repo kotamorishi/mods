@@ -271,49 +271,17 @@ enum HTMLBuilder {
         });
     })();
 
-    // Find bar
+    // Search highlight functions (UI driven by SwiftUI toolbar)
     (function() {
-        var bar = document.createElement('div');
-        bar.id = '__mods-find-bar';
-        bar.setAttribute('role', 'search');
-        bar.setAttribute('aria-label', 'Find in document');
-        bar.style.cssText = 'display:none;position:fixed;top:0;left:0;right:0;padding:8px 12px;background:rgba(246,248,250,0.95);backdrop-filter:blur(8px);border-bottom:1px solid #d0d7de;z-index:9999;font-family:-apple-system,sans-serif;font-size:13px;';
-        bar.innerHTML = '<div style="display:flex;align-items:center;max-width:900px;margin:0 auto;gap:8px;"><input id="__mods-find-input" type="text" placeholder="Find..." aria-label="Search text" style="flex:1;padding:4px 8px;border:1px solid #d0d7de;border-radius:4px;font-size:13px;outline:none;"><span id="__mods-find-count" aria-live="polite" style="color:#656d76;min-width:40px;"></span><button id="__mods-find-next-btn" aria-label="Next match" style="padding:2px 8px;border:1px solid #d0d7de;border-radius:4px;background:#fff;cursor:pointer;">Next</button><button id="__mods-find-close-btn" aria-label="Close find bar" style="padding:2px 8px;border:1px solid #d0d7de;border-radius:4px;background:#fff;cursor:pointer;">✕</button></div>';
-        document.body.appendChild(bar);
-        document.getElementById('__mods-find-next-btn').addEventListener('click', function() { window.__modsFindNext(); });
-        document.getElementById('__mods-find-close-btn').addEventListener('click', function() { window.__modsFindClose(); });
-
-        if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-            bar.style.background = 'rgba(13,17,23,0.95)';
-            bar.style.borderBottomColor = '#3d444d';
-            var darkEls = bar.querySelectorAll('input, button');
-            darkEls.forEach(function(el) {
-                el.style.background = '#161b22';
-                el.style.borderColor = '#3d444d';
-                el.style.color = '#e6edf3';
-            });
-        }
-
-        var input = document.getElementById('__mods-find-input');
-        input.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') { window.__modsFindNext(); }
-            if (e.key === 'Escape') { window.__modsFindClose(); }
-        });
-        var __modsFindTimer = null;
-        input.addEventListener('input', function() {
-            clearTimeout(__modsFindTimer);
-            __modsFindTimer = setTimeout(function() { window.__modsFindHighlight(); }, 200);
-        });
-
-        window.__modsToggleFind = function() {
-            if (bar.style.display === 'none') {
-                bar.style.display = 'block';
-                document.getElementById('__mods-find-input').focus();
-                document.getElementById('__mods-find-input').select();
-            } else {
-                window.__modsFindClose();
-            }
-        };
+        // Hidden input to store search term from Swift
+        var hiddenInput = document.createElement('input');
+        hiddenInput.id = '__mods-find-input';
+        hiddenInput.type = 'hidden';
+        document.body.appendChild(hiddenInput);
+        var countSpan = document.createElement('span');
+        countSpan.id = '__mods-find-count';
+        countSpan.style.display = 'none';
+        document.body.appendChild(countSpan);
 
         window.__modsClearHighlights = function() {
             var highlights = document.querySelectorAll('.__mods-highlight');
@@ -321,14 +289,13 @@ enum HTMLBuilder {
             highlights.forEach(function(el) {
                 el.replaceWith(el.textContent);
             });
-            // Merge adjacent text nodes split by previous highlights
             document.getElementById('content').normalize();
         };
 
         window.__modsFindHighlight = function() {
             window.__modsClearHighlights();
             var term = document.getElementById('__mods-find-input').value;
-            if (!term || term.length < 2) { document.getElementById('__mods-find-count').textContent = ''; return; }
+            if (!term || term.length < 2) return;
             var content = document.getElementById('content');
             var walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT, null);
             var nodes = [];
@@ -356,31 +323,8 @@ enum HTMLBuilder {
                 frag.appendChild(document.createTextNode(text.substring(pos)));
                 node.parentNode.replaceChild(frag, node);
             });
-            document.getElementById('__mods-find-count').textContent = count + ' found';
             var first = document.querySelector('.__mods-highlight');
             if (first) { first.scrollIntoView({ block: 'center' }); }
-        };
-
-        window.__modsFindNext = function() {
-            var marks = document.querySelectorAll('.__mods-highlight');
-            if (marks.length === 0) return;
-            var current = document.querySelector('.__mods-highlight-active');
-            var idx = 0;
-            if (current) {
-                current.style.background = '#fff3a8';
-                current.classList.remove('__mods-highlight-active');
-                marks.forEach(function(m, i) { if (m === current) idx = (i + 1) % marks.length; });
-            }
-            marks[idx].style.background = '#f0a030';
-            marks[idx].classList.add('__mods-highlight-active');
-            marks[idx].scrollIntoView({ block: 'center' });
-        };
-
-        window.__modsFindClose = function() {
-            bar.style.display = 'none';
-            window.__modsClearHighlights();
-            document.getElementById('__mods-find-count').textContent = '';
-            document.getElementById('__mods-find-input').value = '';
         };
     })();
     """

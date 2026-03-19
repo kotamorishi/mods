@@ -4,7 +4,7 @@ import WebKit
 struct MarkdownWebView: NSViewRepresentable {
     let markdown: String
     let zoomLevel: Double
-    let findTrigger: Int
+    let searchText: String
     let printTrigger: Int
     let exportPDFTrigger: Int
     let tocScrollTarget: String
@@ -31,7 +31,7 @@ struct MarkdownWebView: NSViewRepresentable {
         var isInitialLoadDone = false
         var lastHTML: String = ""
         var pendingPostLoadJS: String = ""
-        var lastFindTrigger: Int = 0
+        var lastSearchText: String = ""
         var lastPrintTrigger: Int = 0
         var lastExportPDFTrigger: Int = 0
         var lastTOCTarget: String = ""
@@ -72,7 +72,7 @@ struct MarkdownWebView: NSViewRepresentable {
         webView.autoresizingMask = [.width, .height]
         webView.navigationDelegate = context.coordinator
         context.coordinator.currentMarkdown = markdown
-        context.coordinator.lastFindTrigger = findTrigger
+        context.coordinator.lastSearchText = searchText
 
         if !markdown.isEmpty {
             let bodyHTML = MarkdownRenderer.renderToHTML(markdown)
@@ -104,10 +104,15 @@ struct MarkdownWebView: NSViewRepresentable {
             }
         }
 
-        // Toggle find bar
-        if context.coordinator.lastFindTrigger != findTrigger {
-            context.coordinator.lastFindTrigger = findTrigger
-            webView.evaluateJavaScript("window.__modsToggleFind();")
+        // Search highlighting
+        if context.coordinator.lastSearchText != searchText {
+            context.coordinator.lastSearchText = searchText
+            if searchText.count >= 2 {
+                let encoded = HTMLBuilder.jsonEncode(searchText)
+                webView.evaluateJavaScript("document.getElementById('__mods-find-input').value=\(encoded); window.__modsFindHighlight();")
+            } else {
+                webView.evaluateJavaScript("window.__modsClearHighlights(); document.getElementById('__mods-find-count').textContent='';")
+            }
         }
 
         // Print
