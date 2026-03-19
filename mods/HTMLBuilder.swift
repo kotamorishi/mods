@@ -155,6 +155,28 @@ enum HTMLBuilder {
         });
         document.querySelectorAll('input[type="checkbox"]').forEach(function(cb) { cb.disabled = true; });
         // Copy button on code blocks
+        function __modsCopyText(text, btn) {
+            // Try modern API first, fall back to legacy execCommand
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(function() {
+                    btn.textContent = 'Copied!';
+                    setTimeout(function() { btn.textContent = 'Copy'; }, 1500);
+                }).catch(function() { __modsCopyLegacy(text, btn); });
+            } else {
+                __modsCopyLegacy(text, btn);
+            }
+        }
+        function __modsCopyLegacy(text, btn) {
+            var ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.cssText = 'position:fixed;left:-9999px;';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            btn.textContent = 'Copied!';
+            setTimeout(function() { btn.textContent = 'Copy'; }, 1500);
+        }
         document.querySelectorAll('pre').forEach(function(pre) {
             if (pre.querySelector('.__mods-copy-btn')) return;
             var code = pre.querySelector('code');
@@ -163,12 +185,7 @@ enum HTMLBuilder {
             var btn = document.createElement('button');
             btn.className = '__mods-copy-btn';
             btn.textContent = 'Copy';
-            btn.addEventListener('click', function() {
-                navigator.clipboard.writeText(code.textContent).then(function() {
-                    btn.textContent = 'Copied!';
-                    setTimeout(function() { btn.textContent = 'Copy'; }, 1500);
-                });
-            });
+            btn.addEventListener('click', function() { __modsCopyText(code.textContent, btn); });
             pre.appendChild(btn);
         });
         if (typeof katex !== 'undefined') {
