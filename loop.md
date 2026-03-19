@@ -1,50 +1,42 @@
 # mods — Continuous Improvement Loop
 
 Run this loop to autonomously identify issues, implement improvements, and verify results.
+**Current focus: Security and Stability only. No new features.**
 
 ## Process
 
 ### 1. Identify
 
-Analyze the current codebase and user experience for the highest-impact opportunity.
-Check these areas — pick ONE specific, actionable item:
-
-**Performance:**
-- App launch time, render speed, memory usage
-- Bundle size optimization
-- Any remaining uncached or redundant work
-
-**Quality:**
-- GFM rendering correctness vs github.com
-- Dark mode consistency
-- Edge cases: unusual markdown syntax, large files, binary files
-- Build warnings, code duplication
+Analyze the current codebase for security vulnerabilities and stability issues.
+Pick ONE specific, actionable item from these areas:
 
 **Security:**
-- Review HTML sanitization coverage
-- Check for new attack vectors
-- Audit entitlements and CSP
+- HTML sanitization gaps (new bypass vectors, edge cases)
+- CSP policy completeness
+- WKWebView attack surface (navigation, JS injection, resource loading)
+- File access beyond sandbox boundaries
+- Input validation (malformed URLs, paths, file contents)
+- Dependency audit (cmark-gfm, highlight.js, KaTeX, Mermaid versions)
+- Entitlements minimization
 
-**UX / Feature:**
-- Multiple windows: open each file in a new window instead of replacing
-- Window restoration: remember open files across app restarts
-- Drag & drop improvements
-- Better error messages and user feedback
-- Accessibility (VoiceOver, keyboard navigation)
-- Toolbar customization
-- Recent files menu
-- Touch Bar support (if applicable)
-- Localization
+**Stability:**
+- Crash scenarios (nil handling, force unwraps, edge cases)
+- Memory leaks (WKWebView, FileWatcher, cached resources)
+- Thread safety (nonisolated(unsafe) static vars, concurrent access)
+- Error handling (graceful degradation, user feedback)
+- Edge cases (empty files, binary files, huge headings, deeply nested lists)
+- WebView process termination recovery
 
-**Architecture:**
-- Reduce code duplication between app and QL extension
-- Test coverage (unit tests for MarkdownRenderer, HTMLBuilder)
-- Modularize into Swift Package for reuse
+**Quality (non-feature):**
+- Build warnings (Release mode)
+- Code correctness (regex edge cases, string handling)
+- Test coverage for existing functionality
 
 ### 2. Implement
 
 - Read the relevant source files before making changes
 - Make the minimal change needed
+- Do NOT add new features — only fix security issues, stability bugs, and quality problems
 - Build and verify:
   ```
   xcodebuild -project mods.xcodeproj -scheme mods -configuration Debug build SYMROOT=$(pwd)/build DEVELOPMENT_TEAM=$DEVELOPMENT_TEAM CODE_SIGN_IDENTITY="Apple Development"
@@ -52,10 +44,9 @@ Check these areas — pick ONE specific, actionable item:
 
 ### 3. Evaluate
 
-- Confirm build succeeds with zero warnings
-- If performance: measure before/after
-- If quality: test with `test/gfm-full-test.md`
-- If feature: verify it works as expected
+- Confirm build succeeds with zero warnings (Release mode)
+- If security: verify the attack vector is blocked
+- If stability: verify the edge case is handled gracefully
 - If the change made things worse, revert it
 - Commit and push
 
