@@ -72,13 +72,16 @@ struct MarkdownWebView: NSViewRepresentable {
         webView.autoresizingMask = [.width, .height]
         webView.navigationDelegate = context.coordinator
         context.coordinator.currentMarkdown = markdown
-        context.coordinator.isInitialLoadDone = true
         context.coordinator.lastFindTrigger = findTrigger
-        let bodyHTML = MarkdownRenderer.renderToHTML(markdown)
-        let html = HTMLBuilder.buildHTML(bodyHTML: bodyHTML)
-        context.coordinator.lastHTML = html
-        context.coordinator.pendingPostLoadJS = HTMLBuilder.conditionalJS(for: bodyHTML)
-        webView.loadHTMLString(html, baseURL: nil)
+
+        if !markdown.isEmpty {
+            let bodyHTML = MarkdownRenderer.renderToHTML(markdown)
+            let html = HTMLBuilder.buildHTML(bodyHTML: bodyHTML)
+            context.coordinator.lastHTML = html
+            context.coordinator.pendingPostLoadJS = HTMLBuilder.conditionalJS(for: bodyHTML)
+            context.coordinator.isInitialLoadDone = true
+            webView.loadHTMLString(html, baseURL: nil)
+        }
         return webView
     }
 
@@ -88,12 +91,16 @@ struct MarkdownWebView: NSViewRepresentable {
         if context.coordinator.currentMarkdown != markdown {
             context.coordinator.currentMarkdown = markdown
 
-            if context.coordinator.isInitialLoadDone {
+            if context.coordinator.isInitialLoadDone && !markdown.isEmpty {
                 updateContentViaJS(webView: webView)
-            } else {
+            } else if !markdown.isEmpty {
+                // First real content load — use loadHTMLString for full page setup
                 let bodyHTML = MarkdownRenderer.renderToHTML(markdown)
-                webView.loadHTMLString(HTMLBuilder.buildHTML(bodyHTML: bodyHTML), baseURL: nil)
+                let html = HTMLBuilder.buildHTML(bodyHTML: bodyHTML)
+                context.coordinator.lastHTML = html
+                context.coordinator.pendingPostLoadJS = HTMLBuilder.conditionalJS(for: bodyHTML)
                 context.coordinator.isInitialLoadDone = true
+                webView.loadHTMLString(html, baseURL: nil)
             }
         }
 
