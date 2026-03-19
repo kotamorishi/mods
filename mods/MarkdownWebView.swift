@@ -15,11 +15,16 @@ struct MarkdownWebView: NSViewRepresentable {
 
         @MainActor
         func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction) async -> WKNavigationActionPolicy {
-            if navigationAction.navigationType == .linkActivated, let url = navigationAction.request.url {
-                NSWorkspace.shared.open(url)
-                return .cancel
+            // Allow initial HTML string load and about:blank
+            if navigationAction.navigationType == .other {
+                return .allow
             }
-            return .allow
+            // All clicks open in default browser — never navigate inside WebView
+            if let url = navigationAction.request.url,
+               url.scheme == "https" || url.scheme == "http" {
+                NSWorkspace.shared.open(url)
+            }
+            return .cancel
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {

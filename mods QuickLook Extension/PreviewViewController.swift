@@ -14,11 +14,14 @@ class PreviewViewController: NSViewController, QLPreviewingController, WKNavigat
     }
 
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction) async -> WKNavigationActionPolicy {
-        if navigationAction.navigationType == .linkActivated, let url = navigationAction.request.url {
-            NSWorkspace.shared.open(url)
-            return .cancel
+        if navigationAction.navigationType == .other {
+            return .allow
         }
-        return .allow
+        if let url = navigationAction.request.url,
+           url.scheme == "https" || url.scheme == "http" {
+            NSWorkspace.shared.open(url)
+        }
+        return .cancel
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {

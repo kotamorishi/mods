@@ -53,8 +53,12 @@ enum HTMLBuilder {
         if let config = _sharedConfig { return config }
         let config = WKWebViewConfiguration()
 
-        // Disable JS from page content — only WKUserScript JS can run
+        // Security: disable JS from page content — only WKUserScript JS can run.
+        // This prevents <script> tags in markdown from executing.
         config.defaultWebpagePreferences.allowsContentJavaScript = false
+
+        // Security: disable link previews (force-touch/3D-touch on links)
+        config.preferences.isElementFullscreenEnabled = false
 
         let controller = WKUserContentController()
 
@@ -100,6 +104,8 @@ enum HTMLBuilder {
         <html>
         <head>
         <meta charset="utf-8">
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data: blob:;">
+        <meta name="referrer" content="no-referrer">
         \(styleBlock())
         </head>
         <body>
