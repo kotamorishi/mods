@@ -50,6 +50,7 @@ struct modsApp: App {
 /// Welcome window: shown on launch, allows opening a file.
 struct WelcomeView: View {
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.dismissWindow) private var dismissWindow
 
     var body: some View {
         Text("Drop a markdown file or use File > Open")
@@ -59,6 +60,7 @@ struct WelcomeView: View {
             .focusedSceneValue(\.openFileAction, openFile)
             .onOpenURL { url in
                 openWindow(value: Self.resolveURL(url))
+                dismissWindow(id: "welcome")
             }
             .onDrop(of: [.fileURL], isTargeted: nil) { providers in
                 guard let provider = providers.first else { return false }
@@ -66,6 +68,7 @@ struct WelcomeView: View {
                     if let url {
                         DispatchQueue.main.async {
                             openWindow(value: url)
+                            dismissWindow(id: "welcome")
                         }
                     }
                 }
@@ -86,6 +89,7 @@ struct WelcomeView: View {
             for url in panel.urls {
                 openWindow(value: url)
             }
+            dismissWindow(id: "welcome")
         }
     }
 
