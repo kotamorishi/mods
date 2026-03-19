@@ -113,34 +113,59 @@ Go back to step 1. Stop after 3 cycles per session unless instructed otherwise.
 | 44 | Feature | Export as PDF (Cmd+Shift+E) via WKWebView createPDF |
 | 45 | Feature | Word count and reading time status bar |
 | 46 | Feature | Table of Contents popover for heading navigation |
+| 47 | Quality | Verify Release build, update loop.md |
+| 48 | Feature | Copy button on code blocks (hover to reveal) |
+| 49 | Feature | `mods://` URL scheme for scriptable file opening |
+| 50 | Quality | Fix copy button with legacy clipboard fallback |
+| 51 | Quality | Add accessibility attributes to JS-injected UI |
+| 52 | Quality | Update README and App Store description with all features |
+| 53 | Bug | Fix find bar buttons broken by allowsContentJavaScript=false |
+| 54 | Quality | Fix find bar dark mode styling |
+| 55 | UX | Close welcome window when opening a file from it |
+| 56 | Bug | Fix File > Open when no windows are open |
+| 57 | Quality | Audit Release bundle, commit project file |
+| 58 | Bug | Handle onOpenURL in FileView for when welcome window is closed |
 
 ## Features
 
 | Feature | Description |
 |---------|-------------|
-| File watching | Auto-reload when .md file changes on disk (DispatchSource) |
-| External image blocking | Block auto-loading, click-to-load placeholder |
-| Search (Cmd+F) | Find bar with live highlighting, match count, next/close |
-| Print (Cmd+P) | Print rendered markdown via system print dialog |
-| Export PDF (Cmd+Shift+E) | Save rendered markdown as PDF |
+| GFM rendering | cmark-gfm (same engine as GitHub), tables, footnotes, alerts |
+| Syntax highlighting | 16+ languages via highlight.js |
+| Math (KaTeX) | Inline `$...$` and block `$$...$$` expressions |
+| Mermaid diagrams | Flowcharts, sequence diagrams via mermaid.js |
+| Emoji shortcodes | 1913 GitHub emoji via gemoji data |
+| Color chips | Visual swatches for hex/rgb/hsl in inline code |
 | Multiple windows | Each file opens in its own window |
-| Open Recent | File > Open Recent menu |
-| Word count | Status bar with word count and reading time |
+| Find (Cmd+F) | Find bar with live highlighting, match count, next/close |
+| Print (Cmd+P) | Print via system print dialog |
+| Export PDF (Cmd+Shift+E) | Save rendered markdown as PDF |
 | Table of Contents | Toolbar popover with heading outline navigation |
+| Word count | Status bar with word count and reading time |
+| Copy code blocks | Hover-to-reveal copy button on code blocks |
+| File watching | Auto-reload when .md file changes on disk |
+| Open Recent | File > Open Recent menu |
+| URL scheme | `mods:///path/to/file.md` for scripting |
+| QuickLook | Preview .md files in Finder (Space key) |
 | Encoding fallback | UTF-8 → Latin-1 → Shift-JIS → UTF-16 → ASCII |
-| Security: Content JS | Page JS disabled, WKUserScript bypasses |
-| Security: Sanitization | Strip dangerous tags, event handlers, javascript: URLs |
-| Security: CSP | `default-src 'none'` with per-type allowlists |
-| Security: Navigation | Block all except initial load; links open in browser |
-| Security: Referrer | `no-referrer` policy |
+| External image blocking | Click-to-load placeholders for security |
+| Content Security Policy | `default-src 'none'` with per-type allowlists |
+| HTML sanitization | Strip script/iframe/object/embed/form tags |
+| Navigation blocking | Links open in default browser, not in WebView |
+| Accessibility | ARIA labels on all JS-injected UI elements |
 
-## Backlog (prioritized)
+## Backlog
 
-1. **Accessibility** — VoiceOver support, keyboard navigation in find bar
-2. **Custom CSS** — allow user to override styles via preferences
-3. **URL scheme** — `mods://open?file=/path/to/file.md` for scriptability
-4. **Homebrew formula** — `brew install --cask mods` for easy installation
-5. **Test coverage** — unit tests for MarkdownRenderer, HTMLBuilder
-6. **Syntax theme selection** — light/dark highlight.js themes
-7. **Copy code block** — button to copy code blocks to clipboard
-8. **Back to top** — floating button for long documents
+1. **Custom CSS** — allow user to override styles via preferences
+2. **Homebrew formula** — `brew install --cask mods` for easy installation
+3. **Test coverage** — unit tests for MarkdownRenderer, HTMLBuilder
+4. **Syntax theme selection** — light/dark highlight.js themes
+5. **Back to top** — floating button for long documents
+
+## Stats
+
+- **App size**: 6.2 MB (Release)
+- **Source**: 1199 lines Swift, 6 files + 1 QL extension
+- **Build warnings**: 0
+- **Improvement cycles**: 59
+- **Features**: 23
