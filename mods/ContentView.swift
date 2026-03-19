@@ -6,6 +6,7 @@ struct StartView: View {
     @State private var markdown: String = ""
     @State private var zoomLevel: Double = 1.0
     @State private var fileWatcher: FileWatcher?
+    @State private var findTrigger: Int = 0
 
     var body: some View {
         Group {
@@ -14,7 +15,7 @@ struct StartView: View {
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                MarkdownWebView(markdown: markdown, zoomLevel: zoomLevel)
+                MarkdownWebView(markdown: markdown, zoomLevel: zoomLevel, findTrigger: findTrigger)
             }
         }
         .frame(minWidth: 400, minHeight: 300)
@@ -66,7 +67,7 @@ struct StartView: View {
     }
 
     private func performFind() {
-        NSApp.sendAction(#selector(NSResponder.performTextFinderAction(_:)), to: nil, from: NSTextFinder.Action.showFindInterface)
+        findTrigger += 1
     }
 
     private func openFile() {

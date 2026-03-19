@@ -4,12 +4,14 @@ import WebKit
 struct MarkdownWebView: NSViewRepresentable {
     let markdown: String
     let zoomLevel: Double
+    let findTrigger: Int
 
     class Coordinator: NSObject, WKNavigationDelegate {
         var currentMarkdown: String = ""
         var isInitialLoadDone = false
         var lastHTML: String = ""
         var pendingPostLoadJS: String = ""
+        var lastFindTrigger: Int = 0
 
         @MainActor
         func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction) async -> WKNavigationActionPolicy {
@@ -20,7 +22,6 @@ struct MarkdownWebView: NSViewRepresentable {
             return .allow
         }
 
-        /// After page finishes loading, inject conditional JS (mermaid/katex).
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             if !pendingPostLoadJS.isEmpty {
                 webView.evaluateJavaScript(pendingPostLoadJS)
@@ -28,7 +29,6 @@ struct MarkdownWebView: NSViewRepresentable {
             }
         }
 
-        /// Recover from WebKit process crash by reloading the last content.
         func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
             if !lastHTML.isEmpty {
                 webView.loadHTMLString(lastHTML, baseURL: nil)
@@ -44,6 +44,7 @@ struct MarkdownWebView: NSViewRepresentable {
         webView.navigationDelegate = context.coordinator
         context.coordinator.currentMarkdown = markdown
         context.coordinator.isInitialLoadDone = true
+        context.coordinator.lastFindTrigger = findTrigger
         let bodyHTML = MarkdownRenderer.renderToHTML(markdown)
         let html = HTMLBuilder.buildHTML(bodyHTML: bodyHTML)
         context.coordinator.lastHTML = html
@@ -66,10 +67,14 @@ struct MarkdownWebView: NSViewRepresentable {
                 context.coordinator.isInitialLoadDone = true
             }
         }
+
+        // Toggle find bar
+        if context.coordinator.lastFindTrigger != findTrigger {
+            context.coordinator.lastFindTrigger = findTrigger
+            webView.evaluateJavaScript("window.__modsToggleFind();")
+        }
     }
 
-    /// Fast content update: swap #content innerHTML via JS and re-run post-processing.
-    /// Uses evaluateJavaScript() which bypasses allowsContentJavaScript = false.
     private func updateContentViaJS(webView: WKWebView) {
         let bodyHTML = MarkdownRenderer.renderToHTML(markdown)
 

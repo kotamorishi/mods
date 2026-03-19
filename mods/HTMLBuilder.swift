@@ -180,6 +180,101 @@ enum HTMLBuilder {
         });
     };
     window.__modsPostProcess();
+
+    // Find bar
+    (function() {
+        var bar = document.createElement('div');
+        bar.id = '__mods-find-bar';
+        bar.style.cssText = 'display:none;position:fixed;top:0;left:0;right:0;padding:8px 12px;background:rgba(246,248,250,0.95);backdrop-filter:blur(8px);border-bottom:1px solid #d0d7de;z-index:9999;font-family:-apple-system,sans-serif;font-size:13px;';
+        bar.innerHTML = '<div style="display:flex;align-items:center;max-width:900px;margin:0 auto;gap:8px;"><input id="__mods-find-input" type="text" placeholder="Find..." style="flex:1;padding:4px 8px;border:1px solid #d0d7de;border-radius:4px;font-size:13px;outline:none;"><span id="__mods-find-count" style="color:#656d76;min-width:40px;"></span><button onclick="window.__modsFindNext()" style="padding:2px 8px;border:1px solid #d0d7de;border-radius:4px;background:#fff;cursor:pointer;">Next</button><button onclick="window.__modsFindClose()" style="padding:2px 8px;border:1px solid #d0d7de;border-radius:4px;background:#fff;cursor:pointer;">✕</button></div>';
+        document.body.appendChild(bar);
+
+        if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            bar.style.background = 'rgba(13,17,23,0.95)';
+            bar.style.borderBottomColor = '#3d444d';
+        }
+
+        var input = document.getElementById('__mods-find-input');
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') { window.__modsFindNext(); }
+            if (e.key === 'Escape') { window.__modsFindClose(); }
+        });
+        input.addEventListener('input', function() { window.__modsFindHighlight(); });
+
+        window.__modsToggleFind = function() {
+            if (bar.style.display === 'none') {
+                bar.style.display = 'block';
+                document.getElementById('__mods-find-input').focus();
+                document.getElementById('__mods-find-input').select();
+            } else {
+                window.__modsFindClose();
+            }
+        };
+
+        window.__modsFindHighlight = function() {
+            // Remove previous highlights
+            document.querySelectorAll('.__mods-highlight').forEach(function(el) {
+                el.replaceWith(el.textContent);
+            });
+            var term = document.getElementById('__mods-find-input').value;
+            if (!term) { document.getElementById('__mods-find-count').textContent = ''; return; }
+            var content = document.getElementById('content');
+            var walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT, null);
+            var nodes = [];
+            while (walker.nextNode()) { nodes.push(walker.currentNode); }
+            var count = 0;
+            var lowerTerm = term.toLowerCase();
+            nodes.forEach(function(node) {
+                var text = node.textContent;
+                var lower = text.toLowerCase();
+                var idx = lower.indexOf(lowerTerm);
+                if (idx === -1) return;
+                var frag = document.createDocumentFragment();
+                var pos = 0;
+                while (idx !== -1) {
+                    frag.appendChild(document.createTextNode(text.substring(pos, idx)));
+                    var mark = document.createElement('mark');
+                    mark.className = '__mods-highlight';
+                    mark.style.cssText = 'background:#fff3a8;color:#1f2328;border-radius:2px;';
+                    mark.textContent = text.substring(idx, idx + term.length);
+                    frag.appendChild(mark);
+                    count++;
+                    pos = idx + term.length;
+                    idx = lower.indexOf(lowerTerm, pos);
+                }
+                frag.appendChild(document.createTextNode(text.substring(pos)));
+                node.parentNode.replaceChild(frag, node);
+            });
+            document.getElementById('__mods-find-count').textContent = count + ' found';
+            // Scroll to first match
+            var first = document.querySelector('.__mods-highlight');
+            if (first) { first.scrollIntoView({ block: 'center' }); }
+        };
+
+        window.__modsFindNext = function() {
+            var marks = document.querySelectorAll('.__mods-highlight');
+            if (marks.length === 0) return;
+            var current = document.querySelector('.__mods-highlight-active');
+            var idx = 0;
+            if (current) {
+                current.style.background = '#fff3a8';
+                current.classList.remove('__mods-highlight-active');
+                marks.forEach(function(m, i) { if (m === current) idx = (i + 1) % marks.length; });
+            }
+            marks[idx].style.background = '#f0a030';
+            marks[idx].classList.add('__mods-highlight-active');
+            marks[idx].scrollIntoView({ block: 'center' });
+        };
+
+        window.__modsFindClose = function() {
+            bar.style.display = 'none';
+            document.querySelectorAll('.__mods-highlight').forEach(function(el) {
+                el.replaceWith(el.textContent);
+            });
+            document.getElementById('__mods-find-count').textContent = '';
+            document.getElementById('__mods-find-input').value = '';
+        };
+    })();
     """
 
     // MARK: - Content Detection
