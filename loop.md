@@ -81,6 +81,11 @@ Stop after 3 cycles per session unless instructed otherwise.
 | 24 | Perf | Use regex pre-check for emoji to avoid loading map for URL colons |
 | 25 | Perf | Read file data once for encoding fallback instead of per attempt |
 | 26 | UX | Reset scroll to top when switching files via evaluateJavaScript |
+| 27 | Quality | Extract shared HTMLBuilder to eliminate QL code duplication (-22%) |
+| 28 | Quality | Fix MainActor isolation warning, verify zero-warning Release build |
+| 29 | Perf | Load QL resources from parent app bundle (app 9.2→5.9MB, -36%) |
+| 30 | Perf | Cache compiled alert regexes as static let |
+| 31 | Perf | Cache compiled color chip regexes and deduplicate template |
 | 11 | Perf | Apply static caching to QuickLook extension HTML template |
 | 12 | Quality | Align QuickLook font size/padding with main app |
 | 13 | Quality | Extract shared CSS into mods.css resource file (single source of truth) |
@@ -95,5 +100,6 @@ Stop after 3 cycles per session unless instructed otherwise.
 - Window restoration: remember open files across app restarts
 
 **Quality:**
-- QL extension code duplication: ~60 lines of shared logic (styleBlock, baseHead, etc.) could be extracted
 - Test coverage: no automated tests exist
+
+**Status: Performance optimization exhausted.** All caching, lazy-loading, regex compilation, resource sharing, and rendering optimizations applied. Remaining improvements are feature additions only.
