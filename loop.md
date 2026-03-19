@@ -1,55 +1,67 @@
 # mods — Continuous Improvement Loop
 
 Run this loop to autonomously identify issues, implement improvements, and verify results.
-Focus area: **Performance** first, then quality and UX.
 
 ## Process
 
-### 1. Identify (Problem)
+### 1. Identify
 
-Analyze the current codebase for the highest-impact improvement opportunity.
-Check these areas in priority order:
+Analyze the current codebase and user experience for the highest-impact opportunity.
+Check these areas — pick ONE specific, actionable item:
 
 **Performance:**
-- App launch time and time-to-render
-- Memory usage with multiple windows
-- WKWebView creation overhead
+- App launch time, render speed, memory usage
+- Bundle size optimization
+- Any remaining uncached or redundant work
 
 **Quality:**
 - GFM rendering correctness vs github.com
 - Dark mode consistency
-- Edge cases: unusual markdown syntax, non-UTF8 files
+- Edge cases: unusual markdown syntax, large files, binary files
+- Build warnings, code duplication
 
-**UX:**
-- Zoom persistence across sessions
-- Keyboard shortcuts
-- Window management
+**Security:**
+- Review HTML sanitization coverage
+- Check for new attack vectors
+- Audit entitlements and CSP
 
-Pick ONE specific, measurable issue. Write it down clearly.
+**UX / Feature:**
+- Multiple windows: open each file in a new window instead of replacing
+- Window restoration: remember open files across app restarts
+- Drag & drop improvements
+- Better error messages and user feedback
+- Accessibility (VoiceOver, keyboard navigation)
+- Toolbar customization
+- Recent files menu
+- Touch Bar support (if applicable)
+- Localization
 
-### 2. Improve (Implementation)
+**Architecture:**
+- Reduce code duplication between app and QL extension
+- Test coverage (unit tests for MarkdownRenderer, HTMLBuilder)
+- Modularize into Swift Package for reuse
+
+### 2. Implement
 
 - Read the relevant source files before making changes
-- Make the minimal change to fix the identified issue
-- Build and verify the change compiles:
+- Make the minimal change needed
+- Build and verify:
   ```
   xcodebuild -project mods.xcodeproj -scheme mods -configuration Debug build SYMROOT=$(pwd)/build DEVELOPMENT_TEAM=$DEVELOPMENT_TEAM CODE_SIGN_IDENTITY="Apple Development"
   ```
-- Do NOT add new features — only improve existing behavior
-- Do NOT refactor code that isn't related to the issue
 
-### 3. Evaluate (Verification)
+### 3. Evaluate
 
-- Confirm build succeeds
-- If performance: measure before/after (file sizes, timing, memory)
+- Confirm build succeeds with zero warnings
+- If performance: measure before/after
 - If quality: test with `test/gfm-full-test.md`
+- If feature: verify it works as expected
 - If the change made things worse, revert it
-- Commit and push the change with a descriptive message
+- Commit and push
 
 ### 4. Repeat
 
-Go back to step 1 and pick the next issue.
-Stop after 3 cycles per session unless instructed otherwise.
+Go back to step 1. Stop after 3 cycles per session unless instructed otherwise.
 
 ## Completed Improvements
 
@@ -94,29 +106,33 @@ Stop after 3 cycles per session unless instructed otherwise.
 | 37 | Perf | Cache alt text regex and add early exit in blockExternalImages |
 | 38 | Perf | Move emoji exclusion regexes to static let (all 13 regexes now static) |
 | 39 | Security | Fix CSP to allow click-to-load images while blocking other resources |
+| 40 | Quality | Update loop.md with cycles 32-39 and final status |
+| 41 | Feature | Add Cmd+P print support via WKWebView print operation |
 
-## Features Added
+## Features
 
 | Feature | Description |
 |---------|-------------|
 | File watching | Auto-reload when .md file changes on disk (DispatchSource) |
-| Security: Content JS | `allowsContentJavaScript=false` — page JS disabled, WKUserScript bypasses |
-| Security: Sanitization | Strip script/iframe/object/embed/form, event handlers, javascript: URLs |
-| Security: CSP | `default-src 'none'` with explicit allowlists per resource type |
-| Security: Navigation | Block all navigation except initial load; links open in browser |
-| Security: Images | External images blocked by default, click-to-load with placeholder |
-| Security: Referrer | `no-referrer` policy prevents context leaking |
-| Search | Cmd+F find bar with live highlighting, match count, next/close |
-| Encoding fallback | UTF-8, Latin-1, Shift-JIS, UTF-16, ASCII with single disk read |
+| External image blocking | Block auto-loading, click-to-load placeholder |
+| Search (Cmd+F) | Find bar with live highlighting, match count, next/close |
+| Print (Cmd+P) | Print rendered markdown via system print dialog |
+| Encoding fallback | UTF-8 → Latin-1 → Shift-JIS → UTF-16 → ASCII |
+| Security: Content JS | Page JS disabled, WKUserScript bypasses |
+| Security: Sanitization | Strip dangerous tags, event handlers, javascript: URLs |
+| Security: CSP | `default-src 'none'` with per-type allowlists |
+| Security: Navigation | Block all except initial load; links open in browser |
+| Security: Referrer | `no-referrer` policy |
 
-## Remaining Opportunities
+## Backlog (prioritized)
 
-**Features (require user request):**
-- Multiple windows: open each file in a new window
-- Print support: Cmd+P to print rendered markdown
-- Window restoration: remember open files across app restarts
-
-**Quality:**
-- Test coverage: no automated tests exist
-
-**Status: Performance and security optimization exhausted.** All caching, lazy-loading, regex compilation, resource sharing, rendering optimizations, and security hardening applied.
+1. **Multiple windows** — open each file in a new window instead of replacing current content
+2. **Recent files** — File > Open Recent menu with recently viewed files
+3. **Accessibility** — VoiceOver support, keyboard navigation in find bar
+4. **Table of contents** — sidebar or popup showing heading outline for navigation
+5. **Export to PDF** — save rendered markdown as PDF
+6. **Word count** — status bar showing word/character count
+7. **Custom CSS** — allow user to override styles via preferences
+8. **URL scheme** — `mods://open?file=/path/to/file.md` for scriptability
+9. **Homebrew formula** — `brew install --cask mods` for easy installation
+10. **Test coverage** — unit tests for MarkdownRenderer, HTMLBuilder
