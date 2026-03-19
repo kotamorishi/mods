@@ -1,16 +1,50 @@
 # mods
 
-A lightweight macOS native markdown viewer. View-only — no editing.
+A fast, lightweight macOS native markdown viewer. View-only — no editing.
+
+Renders GitHub Flavored Markdown with the same engine GitHub uses ([cmark-gfm](https://github.com/github/cmark-gfm)).
 
 ## Features
 
-- Renders markdown files with rich formatting via WebKit
-- Syntax-highlighted code blocks (highlight.js)
+**Rendering**
+- Full GitHub Flavored Markdown (GFM) compliance
+- Syntax-highlighted code blocks (16+ languages)
+- Tables, task lists, footnotes, strikethrough
+- Math expressions (KaTeX)
+- Mermaid diagrams
+- Emoji shortcodes (:rocket: etc.)
+- GitHub-style alerts ([!NOTE], [!WARNING], etc.)
+- Color chips for hex/rgb/hsl in inline code
 - Dark mode / light mode support
-- Multiple windows for viewing several files at once
-- Zoom in/out (Cmd+, Cmd-)
-- Open .md files via double-click, File > Open, or drag & drop
+
+**Viewer**
+- Multiple windows — each file in its own window
+- Zoom in/out (Cmd+/Cmd-)
+- Find in document (Cmd+F) with live highlighting
+- Table of Contents popover for heading navigation
+- Word count and reading time status bar
+- Copy button on code blocks
+- Auto-reload when file changes on disk
+
+**Export & Print**
+- Print (Cmd+P)
+- Export as PDF (Cmd+Shift+E)
+
+**File Opening**
+- Double-click .md files in Finder
+- File > Open (Cmd+O) with multiple selection
+- File > Open Recent
+- Drag & drop
 - QuickLook preview in Finder (Space key)
+- `mods://` URL scheme for scripting
+- `open -a mods file.md` from terminal
+
+**Security**
+- External images blocked by default (click to load)
+- Content JavaScript disabled (prevents XSS from markdown)
+- HTML sanitization (strips script/iframe/object tags)
+- Content Security Policy headers
+- No tracking, no analytics, no network requests
 
 ## Requirements
 
@@ -20,23 +54,15 @@ A lightweight macOS native markdown viewer. View-only — no editing.
 
 ## Build
 
-Set your Apple Developer Team ID before building:
-
 ```bash
 export DEVELOPMENT_TEAM="your-team-id"
-```
-
-```bash
-# Build
-xcodebuild -project mods.xcodeproj -scheme mods -configuration Debug build \
-  SYMROOT=$(pwd)/build DEVELOPMENT_TEAM=$DEVELOPMENT_TEAM CODE_SIGN_IDENTITY="Apple Development"
 
 # Build and run
 xcodebuild -project mods.xcodeproj -scheme mods -configuration Debug build \
   SYMROOT=$(pwd)/build DEVELOPMENT_TEAM=$DEVELOPMENT_TEAM CODE_SIGN_IDENTITY="Apple Development" \
   && open build/Debug/mods.app
 
-# Install (required for QuickLook extension)
+# Install (required for QuickLook extension registration)
 cp -R build/Debug/mods.app /Applications/mods.app
 
 # Clean
@@ -45,10 +71,17 @@ xcodebuild -project mods.xcodeproj -scheme mods clean
 
 ## Tech Stack
 
-- Swift / SwiftUI
+- Swift / SwiftUI (macOS 26.0+)
+- [cmark-gfm](https://github.com/github/cmark-gfm) (BSD-2-Clause) — GitHub's markdown parser
 - WKWebView (WebKit) for rendering
-- [marked.js](https://github.com/markedjs/marked) (MIT) — Markdown parser
 - [highlight.js](https://github.com/highlightjs/highlight.js) (BSD-3-Clause) — Syntax highlighting
+- [KaTeX](https://github.com/KaTeX/KaTeX) (MIT) — Math rendering
+- [Mermaid](https://github.com/mermaid-js/mermaid) (MIT) — Diagrams
+- [gemoji](https://github.com/github/gemoji) (MIT) — Emoji data
+
+## Privacy
+
+mods does not collect, store, or transmit any data. See [PRIVACY.md](PRIVACY.md).
 
 ## License
 

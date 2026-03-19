@@ -4,29 +4,41 @@
 mods
 
 ## Subtitle
-Lightweight Markdown Viewer
+GitHub-Style Markdown Viewer
 
 ## Description
-A fast, lightweight markdown viewer for macOS. No editing — just clean, beautiful rendering.
+A fast, lightweight markdown viewer for macOS. No editing — just clean, beautiful rendering powered by the same engine GitHub uses.
 
-**Features:**
-- GitHub Flavored Markdown (GFM) rendering powered by cmark-gfm
-- Syntax-highlighted code blocks
-- Tables, task lists, footnotes, and alerts
-- Math expressions (KaTeX)
-- Mermaid diagrams
-- Emoji shortcodes
-- Dark mode support
-- QuickLook preview in Finder
-- Multiple windows
-- Zoom in/out
+**Rendering:**
+- Full GitHub Flavored Markdown (GFM) compliance
+- Syntax-highlighted code blocks (16+ languages)
+- Tables, task lists, footnotes, strikethrough, alerts
+- Math expressions and Mermaid diagrams
+- Emoji shortcodes and color chips
+- Dark mode / light mode
 
-Open .md files via drag & drop, File > Open, or QuickLook (Space key in Finder).
+**Productivity:**
+- Multiple windows for side-by-side viewing
+- Find in document (Cmd+F) with live highlighting
+- Table of Contents for heading navigation
+- Word count and reading time
+- Copy button on code blocks
+- Auto-reload on file changes
+- Print and Export as PDF
 
-Built with the same markdown engine GitHub uses.
+**Security:**
+- External images blocked by default
+- No JavaScript execution from markdown content
+- No tracking, no analytics, no data collection
+
+**Integration:**
+- QuickLook preview in Finder (Space key)
+- File > Open Recent
+- mods:// URL scheme for scripting
+- Drag & drop support
 
 ## Keywords
-markdown, viewer, preview, github, gfm, quicklook, mermaid, katex, code
+markdown, viewer, preview, github, gfm, quicklook, mermaid, katex, code, developer
 
 ## Category
 Developer Tools
