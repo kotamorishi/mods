@@ -6,6 +6,7 @@ struct modsApp: App {
     @FocusedValue(\.openFileAction) private var openFileAction
     @FocusedValue(\.findAction) private var findAction
     @FocusedValue(\.printAction) private var printAction
+    @FocusedValue(\.exportPDFAction) private var exportPDFAction
 
     var body: some Scene {
         // Welcome window (no file)
@@ -36,6 +37,11 @@ struct modsApp: App {
                     printAction?()
                 }
                 .keyboardShortcut("p", modifiers: .command)
+                Divider()
+                Button("Export as PDF...") {
+                    exportPDFAction?()
+                }
+                .keyboardShortcut("e", modifiers: [.command, .shift])
             }
         }
     }
@@ -94,9 +100,10 @@ struct FileView: View {
     @State private var fileWatcher: FileWatcher?
     @State private var findTrigger: Int = 0
     @State private var printTrigger: Int = 0
+    @State private var exportPDFTrigger: Int = 0
 
     var body: some View {
-        MarkdownWebView(markdown: markdown, zoomLevel: zoomLevel, findTrigger: findTrigger, printTrigger: printTrigger)
+        MarkdownWebView(markdown: markdown, zoomLevel: zoomLevel, findTrigger: findTrigger, printTrigger: printTrigger, exportPDFTrigger: exportPDFTrigger)
             .frame(minWidth: 400, minHeight: 300)
             .navigationTitle(fileURL?.lastPathComponent ?? "mods")
             .toolbar {
@@ -127,6 +134,7 @@ struct FileView: View {
             .focusedSceneValue(\.openFileAction, openFile)
             .focusedSceneValue(\.findAction, performFind)
             .focusedSceneValue(\.printAction, performPrint)
+            .focusedSceneValue(\.exportPDFAction, performExportPDF)
             .onDrop(of: [.fileURL], isTargeted: nil) { providers in
                 guard let provider = providers.first else { return false }
                 _ = provider.loadObject(ofClass: URL.self) { url, _ in
@@ -148,6 +156,7 @@ struct FileView: View {
 
     private func performFind() { findTrigger += 1 }
     private func performPrint() { printTrigger += 1 }
+    private func performExportPDF() { exportPDFTrigger += 1 }
 
     private func openFile() {
         let panel = NSOpenPanel()
@@ -209,6 +218,10 @@ struct PrintActionKey: FocusedValueKey {
     typealias Value = () -> Void
 }
 
+struct ExportPDFActionKey: FocusedValueKey {
+    typealias Value = () -> Void
+}
+
 extension FocusedValues {
     var openFileAction: (() -> Void)? {
         get { self[OpenFileActionKey.self] }
@@ -221,5 +234,9 @@ extension FocusedValues {
     var printAction: (() -> Void)? {
         get { self[PrintActionKey.self] }
         set { self[PrintActionKey.self] = newValue }
+    }
+    var exportPDFAction: (() -> Void)? {
+        get { self[ExportPDFActionKey.self] }
+        set { self[ExportPDFActionKey.self] = newValue }
     }
 }

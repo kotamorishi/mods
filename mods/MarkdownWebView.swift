@@ -6,6 +6,7 @@ struct MarkdownWebView: NSViewRepresentable {
     let zoomLevel: Double
     let findTrigger: Int
     let printTrigger: Int
+    let exportPDFTrigger: Int
 
     class Coordinator: NSObject, WKNavigationDelegate {
         var currentMarkdown: String = ""
@@ -14,6 +15,7 @@ struct MarkdownWebView: NSViewRepresentable {
         var pendingPostLoadJS: String = ""
         var lastFindTrigger: Int = 0
         var lastPrintTrigger: Int = 0
+        var lastExportPDFTrigger: Int = 0
 
         @MainActor
         func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction) async -> WKNavigationActionPolicy {
@@ -85,6 +87,32 @@ struct MarkdownWebView: NSViewRepresentable {
         if context.coordinator.lastPrintTrigger != printTrigger {
             context.coordinator.lastPrintTrigger = printTrigger
             webView.printOperation(with: .shared).runModal(for: webView.window ?? NSWindow(), delegate: nil, didRun: nil, contextInfo: nil)
+        }
+
+        // Export PDF
+        if context.coordinator.lastExportPDFTrigger != exportPDFTrigger {
+            context.coordinator.lastExportPDFTrigger = exportPDFTrigger
+            exportPDF(webView: webView)
+        }
+    }
+
+    private func exportPDF(webView: WKWebView) {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.pdf]
+        panel.nameFieldStringValue = (markdown.isEmpty ? "document" : URL(fileURLWithPath: "untitled").deletingPathExtension().lastPathComponent) + ".pdf"
+        // Try to use the source filename
+        if let name = webView.title, !name.isEmpty {
+            panel.nameFieldStringValue = name.replacingOccurrences(of: ".md", with: "") + ".pdf"
+        }
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        webView.createPDF { result in
+            switch result {
+            case .success(let data):
+                try? data.write(to: url)
+            case .failure:
+                break
+            }
         }
     }
 
