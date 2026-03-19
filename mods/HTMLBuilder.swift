@@ -154,6 +154,23 @@ enum HTMLBuilder {
             if (!block.classList.contains('language-math')) { hljs.highlightElement(block); }
         });
         document.querySelectorAll('input[type="checkbox"]').forEach(function(cb) { cb.disabled = true; });
+        // Copy button on code blocks
+        document.querySelectorAll('pre').forEach(function(pre) {
+            if (pre.querySelector('.__mods-copy-btn')) return;
+            var code = pre.querySelector('code');
+            if (!code) return;
+            pre.style.position = 'relative';
+            var btn = document.createElement('button');
+            btn.className = '__mods-copy-btn';
+            btn.textContent = 'Copy';
+            btn.addEventListener('click', function() {
+                navigator.clipboard.writeText(code.textContent).then(function() {
+                    btn.textContent = 'Copied!';
+                    setTimeout(function() { btn.textContent = 'Copy'; }, 1500);
+                });
+            });
+            pre.appendChild(btn);
+        });
         if (typeof katex !== 'undefined') {
             document.querySelectorAll('pre code.language-math').forEach(function(block) {
                 var pre = block.parentElement;
