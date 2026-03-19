@@ -69,7 +69,6 @@ struct MarkdownRenderer {
         for match in matches {
             let fullRange = match.range
             let preAttrs = nsHtml.substring(with: match.range(at: 1))
-            let quote = nsHtml.substring(with: match.range(at: 2))
             let url = nsHtml.substring(with: match.range(at: 3))
             let postAttrs = nsHtml.substring(with: match.range(at: 4))
 
