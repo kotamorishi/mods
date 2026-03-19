@@ -7,7 +7,7 @@ mods
 GitHub-Style Markdown Viewer
 
 ## Description
-A fast, lightweight markdown viewer for macOS. No editing — just clean, beautiful rendering powered by the same engine GitHub uses.
+A fast, lightweight markdown viewer for macOS. No editing — just clean, beautiful rendering with full GitHub Flavored Markdown (GFM) support.
 
 **Rendering:**
 - Full GitHub Flavored Markdown (GFM) compliance
