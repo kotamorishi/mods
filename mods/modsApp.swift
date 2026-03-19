@@ -210,14 +210,15 @@ struct FileView: View {
         .frame(minWidth: 400, minHeight: 300)
         .navigationTitle(fileURL?.lastPathComponent ?? "mods")
             .toolbar {
-                ToolbarItemGroup {
+                ToolbarItem {
                     Button {
                         showTOC.toggle()
                     } label: {
                         Image(systemName: "list.bullet")
                     }
                     .help("Toggle Outline")
-
+                }
+                ToolbarItemGroup {
                     Button {
                         zoomLevel = max(0.25, zoomLevel - 0.1)
                     } label: {
