@@ -395,8 +395,18 @@ enum HTMLBuilder {
     // MARK: - Utilities
 
     static func jsonEncode(_ string: String) -> String {
-        let data = try! JSONSerialization.data(withJSONObject: [string])
-        let array = String(data: data, encoding: .utf8)!
+        guard let data = try? JSONSerialization.data(withJSONObject: [string]),
+              let array = String(data: data, encoding: .utf8),
+              array.count >= 2 else {
+            // Fallback: manual escaping if JSONSerialization fails
+            let escaped = string
+                .replacingOccurrences(of: "\\", with: "\\\\")
+                .replacingOccurrences(of: "\"", with: "\\\"")
+                .replacingOccurrences(of: "\n", with: "\\n")
+                .replacingOccurrences(of: "\r", with: "\\r")
+                .replacingOccurrences(of: "\t", with: "\\t")
+            return "\"\(escaped)\""
+        }
         return String(array.dropFirst().dropLast())
     }
 
