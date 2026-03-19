@@ -56,20 +56,9 @@ struct modsApp: App {
         }
     }
 
-    /// Fallback for File > Open when no window is focused.
     private func openFileFallback() {
-        let panel = NSOpenPanel()
-        panel.allowedContentTypes = [
-            UTType(filenameExtension: "md") ?? .plainText,
-            UTType(filenameExtension: "markdown") ?? .plainText,
-            .plainText,
-        ]
-        panel.allowsMultipleSelection = true
-        panel.canChooseDirectories = false
-        if panel.runModal() == .OK {
-            for url in panel.urls {
-                openWindow(value: url)
-            }
+        for url in FilePickerHelper.runOpenPanel() {
+            openWindow(value: url)
         }
     }
 }
@@ -104,18 +93,11 @@ struct WelcomeView: View {
     }
 
     private func openFile() {
-        let panel = NSOpenPanel()
-        panel.allowedContentTypes = [
-            UTType(filenameExtension: "md") ?? .plainText,
-            UTType(filenameExtension: "markdown") ?? .plainText,
-            .plainText,
-        ]
-        panel.allowsMultipleSelection = true
-        panel.canChooseDirectories = false
-        if panel.runModal() == .OK {
-            for url in panel.urls {
-                openWindow(value: url)
-            }
+        let urls = FilePickerHelper.runOpenPanel()
+        for url in urls {
+            openWindow(value: url)
+        }
+        if !urls.isEmpty {
             dismissWindow(id: "welcome")
         }
     }
@@ -264,18 +246,8 @@ struct FileView: View {
     private func toggleTOC() { showTOC.toggle() }
 
     private func openFile() {
-        let panel = NSOpenPanel()
-        panel.allowedContentTypes = [
-            UTType(filenameExtension: "md") ?? .plainText,
-            UTType(filenameExtension: "markdown") ?? .plainText,
-            .plainText,
-        ]
-        panel.allowsMultipleSelection = true
-        panel.canChooseDirectories = false
-        if panel.runModal() == .OK {
-            for url in panel.urls {
-                openWindow(value: url)
-            }
+        for url in FilePickerHelper.runOpenPanel() {
+            openWindow(value: url)
         }
     }
 
@@ -384,5 +356,23 @@ struct TOCView: View {
         }
         .frame(width: 260)
         .frame(maxHeight: 400)
+    }
+}
+
+/// Shared file picker for markdown files.
+enum FilePickerHelper {
+    static func runOpenPanel() -> [URL] {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [
+            UTType(filenameExtension: "md") ?? .plainText,
+            UTType(filenameExtension: "markdown") ?? .plainText,
+            .plainText,
+        ]
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = false
+        if panel.runModal() == .OK {
+            return panel.urls
+        }
+        return []
     }
 }
