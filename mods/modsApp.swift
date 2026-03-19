@@ -3,6 +3,7 @@ import UniformTypeIdentifiers
 
 @main
 struct modsApp: App {
+    @Environment(\.openWindow) private var openWindow
     @FocusedValue(\.openFileAction) private var openFileAction
     @FocusedValue(\.findAction) private var findAction
     @FocusedValue(\.printAction) private var printAction
@@ -22,7 +23,11 @@ struct modsApp: App {
         .commands {
             CommandGroup(replacing: .newItem) {
                 Button("Open...") {
-                    openFileAction?()
+                    if let openFileAction {
+                        openFileAction()
+                    } else {
+                        openFileFallback()
+                    }
                 }
                 .keyboardShortcut("o", modifiers: .command)
             }
@@ -42,6 +47,23 @@ struct modsApp: App {
                     exportPDFAction?()
                 }
                 .keyboardShortcut("e", modifiers: [.command, .shift])
+            }
+        }
+    }
+
+    /// Fallback for File > Open when no window is focused.
+    private func openFileFallback() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [
+            UTType(filenameExtension: "md") ?? .plainText,
+            UTType(filenameExtension: "markdown") ?? .plainText,
+            .plainText,
+        ]
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = false
+        if panel.runModal() == .OK {
+            for url in panel.urls {
+                openWindow(value: url)
             }
         }
     }
