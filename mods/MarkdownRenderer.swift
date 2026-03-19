@@ -208,6 +208,8 @@ struct MarkdownRenderer {
         pattern: ":([a-z0-9_+\\-]+):",
         options: []
     )
+    private static let codeBlockExcludeRegex = try! NSRegularExpression(pattern: "<code[^>]*>[\\s\\S]*?</code>")
+    private static let htmlTagExcludeRegex = try! NSRegularExpression(pattern: "<[^>]+>")
 
     /// Quick check for :shortcode: pattern — cheaper than loading the full emoji map
     private static let emojiQuickCheck = try! NSRegularExpression(
@@ -227,13 +229,8 @@ struct MarkdownRenderer {
         let nsHtml = html as NSString
         let fullRange = NSRange(location: 0, length: nsHtml.length)
 
-        // Find all <code>...</code> ranges to exclude
-        let codeBlockRegex = try! NSRegularExpression(pattern: "<code[^>]*>[\\s\\S]*?</code>", options: [])
-        let codeRanges = codeBlockRegex.matches(in: html, range: fullRange).map { $0.range }
-
-        // Find all HTML tag ranges to exclude
-        let tagRegex = try! NSRegularExpression(pattern: "<[^>]+>", options: [])
-        let tagRanges = tagRegex.matches(in: html, range: fullRange).map { $0.range }
+        let codeRanges = codeBlockExcludeRegex.matches(in: html, range: fullRange).map { $0.range }
+        let tagRanges = htmlTagExcludeRegex.matches(in: html, range: fullRange).map { $0.range }
 
         let excludedRanges = codeRanges + tagRanges
 
