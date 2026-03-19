@@ -53,6 +53,120 @@ def greet(name):
 const greet = (name) => `Hello, ${name}!`;
 ```
 
+```java
+public class Main {
+    public static void main(String[] args) {
+        System.out.println("Hello, World!");
+    }
+}
+```
+
+```php
+<?php
+function greet(string $name): string {
+    return "Hello, {$name}!";
+}
+echo greet("World");
+```
+
+```rust
+fn main() {
+    let name = "World";
+    println!("Hello, {}!", name);
+}
+```
+
+```cpp
+#include <iostream>
+#include <string>
+
+int main() {
+    std::string name = "World";
+    std::cout << "Hello, " << name << "!" << std::endl;
+    return 0;
+}
+```
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    printf("Hello, %s!\n", "World");
+    return 0;
+}
+```
+
+```go
+package main
+
+import "fmt"
+
+func main() {
+    name := "World"
+    fmt.Printf("Hello, %s!\n", name)
+}
+```
+
+```ruby
+def greet(name)
+  "Hello, #{name}!"
+end
+
+puts greet("World")
+```
+
+```typescript
+function greet(name: string): string {
+    return `Hello, ${name}!`;
+}
+console.log(greet("World"));
+```
+
+```kotlin
+fun main() {
+    val name = "World"
+    println("Hello, $name!")
+}
+```
+
+```sql
+SELECT u.name, COUNT(o.id) AS order_count
+FROM users u
+LEFT JOIN orders o ON u.id = o.user_id
+WHERE u.created_at > '2024-01-01'
+GROUP BY u.name
+HAVING COUNT(o.id) > 5
+ORDER BY order_count DESC;
+```
+
+```bash
+#!/bin/bash
+name="World"
+echo "Hello, ${name}!"
+for i in {1..5}; do
+    echo "Count: $i"
+done
+```
+
+```yaml
+server:
+  host: localhost
+  port: 8080
+  database:
+    url: postgresql://localhost:5432/mydb
+    pool_size: 10
+```
+
+```json
+{
+  "name": "mods",
+  "version": "1.0.0",
+  "dependencies": {
+    "cmark-gfm": "^0.29.0"
+  }
+}
+```
+
 ```
 Plain code block
 No language specified
