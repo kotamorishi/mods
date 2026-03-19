@@ -69,6 +69,20 @@ cp -R build/Debug/mods.app /Applications/mods.app
 xcodebuild -project mods.xcodeproj -scheme mods clean
 ```
 
+## Custom CSS
+
+Override default styles by creating `~/.config/mods/custom.css`:
+
+```css
+/* Example: wider content, larger font */
+body { max-width: 1200px; font-size: 18px; }
+
+/* Example: custom code block background */
+pre { background-color: #1e1e2e; }
+```
+
+Changes take effect on next file open (restart for cached windows).
+
 ## Tech Stack
 
 - Swift / SwiftUI (macOS 26.0+)

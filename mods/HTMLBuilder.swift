@@ -85,15 +85,26 @@ enum HTMLBuilder {
         let githubCSS = cachedResource("github.min", type: "css")
         let githubDarkCSS = cachedResource("github-dark.min", type: "css")
         let modsCSS = cachedResource("mods", type: "css")
-        let block = """
+        let userCSS = loadUserCSS()
+        var block = """
         <style>
         \(githubCSS)
         @media (prefers-color-scheme: dark) { \(githubDarkCSS) }
         \(modsCSS)
         </style>
         """
+        if !userCSS.isEmpty {
+            block += "\n<style>\(userCSS)</style>"
+        }
         _styleBlock = block
         return block
+    }
+
+    /// Load user custom CSS from ~/.config/mods/custom.css if it exists.
+    private static func loadUserCSS() -> String {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        let cssURL = home.appendingPathComponent(".config/mods/custom.css")
+        return (try? String(contentsOf: cssURL, encoding: .utf8)) ?? ""
     }
 
     /// Shell page head: CSS only (JS via WKUserScript).
