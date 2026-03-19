@@ -7,6 +7,7 @@ struct MarkdownWebView: NSViewRepresentable {
     let findTrigger: Int
     let printTrigger: Int
     let exportPDFTrigger: Int
+    let tocScrollTarget: String
 
     class Coordinator: NSObject, WKNavigationDelegate {
         var currentMarkdown: String = ""
@@ -16,6 +17,7 @@ struct MarkdownWebView: NSViewRepresentable {
         var lastFindTrigger: Int = 0
         var lastPrintTrigger: Int = 0
         var lastExportPDFTrigger: Int = 0
+        var lastTOCTarget: String = ""
 
         @MainActor
         func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction) async -> WKNavigationActionPolicy {
@@ -93,6 +95,24 @@ struct MarkdownWebView: NSViewRepresentable {
         if context.coordinator.lastExportPDFTrigger != exportPDFTrigger {
             context.coordinator.lastExportPDFTrigger = exportPDFTrigger
             exportPDF(webView: webView)
+        }
+
+        // TOC scroll
+        if context.coordinator.lastTOCTarget != tocScrollTarget && !tocScrollTarget.isEmpty {
+            context.coordinator.lastTOCTarget = tocScrollTarget
+            let escaped = tocScrollTarget.replacingOccurrences(of: "'", with: "\\'")
+            let js = """
+            (function() {
+                var headings = document.querySelectorAll('h1,h2,h3,h4,h5,h6');
+                for (var h of headings) {
+                    if (h.textContent.trim() === '\(escaped)') {
+                        h.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        break;
+                    }
+                }
+            })();
+            """
+            webView.evaluateJavaScript(js)
         }
     }
 

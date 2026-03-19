@@ -101,6 +101,22 @@ struct FileView: View {
     @State private var findTrigger: Int = 0
     @State private var printTrigger: Int = 0
     @State private var exportPDFTrigger: Int = 0
+    @State private var tocScrollTarget: String = ""
+    @State private var showTOC: Bool = false
+
+    private var headings: [(level: Int, text: String)] {
+        markdown.components(separatedBy: "\n")
+            .compactMap { line -> (Int, String)? in
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                guard trimmed.hasPrefix("#") else { return nil }
+                var level = 0
+                for ch in trimmed { if ch == "#" { level += 1 } else { break } }
+                guard level >= 1 && level <= 6 else { return nil }
+                let text = String(trimmed.dropFirst(level)).trimmingCharacters(in: .whitespaces)
+                guard !text.isEmpty else { return nil }
+                return (level, text)
+            }
+    }
 
     private var wordCount: Int {
         markdown.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
@@ -113,7 +129,7 @@ struct FileView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            MarkdownWebView(markdown: markdown, zoomLevel: zoomLevel, findTrigger: findTrigger, printTrigger: printTrigger, exportPDFTrigger: exportPDFTrigger)
+            MarkdownWebView(markdown: markdown, zoomLevel: zoomLevel, findTrigger: findTrigger, printTrigger: printTrigger, exportPDFTrigger: exportPDFTrigger, tocScrollTarget: tocScrollTarget)
             if !markdown.isEmpty {
                 HStack {
                     Text("\(wordCount) words")
@@ -132,6 +148,20 @@ struct FileView: View {
         .navigationTitle(fileURL?.lastPathComponent ?? "mods")
             .toolbar {
                 ToolbarItemGroup {
+                    if !headings.isEmpty {
+                        Button {
+                            showTOC.toggle()
+                        } label: {
+                            Image(systemName: "list.bullet")
+                        }
+                        .popover(isPresented: $showTOC) {
+                            TOCView(headings: headings) { heading in
+                                showTOC = false
+                                tocScrollTarget = heading
+                            }
+                        }
+                    }
+
                     Button {
                         zoomLevel = max(0.25, zoomLevel - 0.1)
                     } label: {
@@ -262,5 +292,38 @@ extension FocusedValues {
     var exportPDFAction: (() -> Void)? {
         get { self[ExportPDFActionKey.self] }
         set { self[ExportPDFActionKey.self] = newValue }
+    }
+}
+
+/// Table of contents popover showing heading outline.
+struct TOCView: View {
+    let headings: [(level: Int, text: String)]
+    let onSelect: (String) -> Void
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(Array(headings.enumerated()), id: \.offset) { _, heading in
+                    Button {
+                        onSelect(heading.text)
+                    } label: {
+                        Text(heading.text)
+                            .font(.system(size: heading.level <= 2 ? 13 : 12,
+                                          weight: heading.level <= 2 ? .semibold : .regular))
+                            .foregroundStyle(heading.level <= 2 ? .primary : .secondary)
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.leading, CGFloat((heading.level - 1) * 12))
+                            .padding(.vertical, 3)
+                            .padding(.horizontal, 8)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(8)
+        }
+        .frame(width: 260)
+        .frame(maxHeight: 400)
     }
 }
