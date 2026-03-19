@@ -14,8 +14,10 @@ struct MarkdownRenderer {
     static func renderToHTML(_ markdown: String) -> String {
         _ = extensionsRegistered
 
+        // Security: CMARK_OPT_DEFAULT escapes all raw HTML in markdown.
+        // Do NOT use CMARK_OPT_UNSAFE — it passes raw HTML through,
+        // enabling XSS via crafted markdown files.
         let options = CMARK_OPT_DEFAULT
-            | CMARK_OPT_UNSAFE
             | CMARK_OPT_FOOTNOTES
 
         let parser = cmark_parser_new(Int32(options))
@@ -48,7 +50,6 @@ struct MarkdownRenderer {
 
         var html = String(cString: htmlCStr)
 
-        html = sanitizeHTML(html)
         html = blockExternalImages(html)
         html = processAlerts(html)
         html = processEmoji(html)
@@ -108,74 +109,7 @@ struct MarkdownRenderer {
             .replacingOccurrences(of: "<", with: "&lt;")
             .replacingOccurrences(of: ">", with: "&gt;")
             .replacingOccurrences(of: "\"", with: "&quot;")
-    }
-
-    // MARK: - HTML Sanitization
-
-    /// Dangerous tags that could execute code or load external resources
-    private static let dangerousTagRegexes: [NSRegularExpression] = [
-        try! NSRegularExpression(pattern: "<script[^>]*>[\\s\\S]*?</script>", options: .caseInsensitive),
-        try! NSRegularExpression(pattern: "<iframe[^>]*>[\\s\\S]*?</iframe>", options: .caseInsensitive),
-        try! NSRegularExpression(pattern: "<object[^>]*>[\\s\\S]*?</object>", options: .caseInsensitive),
-        try! NSRegularExpression(pattern: "<embed[^>]*>", options: .caseInsensitive),
-        try! NSRegularExpression(pattern: "<form[^>]*>[\\s\\S]*?</form>", options: .caseInsensitive),
-        // SVG can contain <script>, <foreignObject>, event handlers
-        try! NSRegularExpression(pattern: "<svg[^>]*>[\\s\\S]*?</svg>", options: .caseInsensitive),
-        // Meta refresh can redirect
-        try! NSRegularExpression(pattern: "<meta[^>]*http-equiv[^>]*>", options: .caseInsensitive),
-        // Base tag can change URL resolution
-        try! NSRegularExpression(pattern: "<base[^>]*>", options: .caseInsensitive),
-        // Link tag can load external resources
-        try! NSRegularExpression(pattern: "<link[^>]*>", options: .caseInsensitive),
-    ]
-
-    /// Event handler attributes (onclick, onerror, onload, etc.)
-    /// Handles quoted: onerror="..." and unquoted: onerror=alert(1)
-    private static let eventHandlerRegex = try! NSRegularExpression(
-        pattern: "\\s+on\\w+\\s*=\\s*(?:([\"'])[\\s\\S]*?\\1|[^\\s>]+)",
-        options: .caseInsensitive
-    )
-
-    /// javascript: URLs in href/src attributes (quoted and unquoted)
-    private static let jsURLRegex = try! NSRegularExpression(
-        pattern: "(href|src|action)\\s*=\\s*(?:([\"'])\\s*javascript:[\\s\\S]*?\\2|javascript:[^\\s>]*)",
-        options: .caseInsensitive
-    )
-
-    /// data: URLs (potential XSS vector) except for images (quoted and unquoted)
-    private static let dataURLRegex = try! NSRegularExpression(
-        pattern: "(href|action)\\s*=\\s*(?:([\"'])\\s*data:[\\s\\S]*?\\2|data:[^\\s>]*)",
-        options: .caseInsensitive
-    )
-
-    /// CSS expressions (IE legacy) and javascript in style attributes
-    private static let cssExpressionRegex = try! NSRegularExpression(
-        pattern: "expression\\s*\\(|url\\s*\\(\\s*[\"']?\\s*javascript:",
-        options: .caseInsensitive
-    )
-
-    private static func sanitizeHTML(_ html: String) -> String {
-        var result = html
-        let range = { NSRange(result.startIndex..., in: result) }
-
-        // Strip dangerous tags
-        for regex in dangerousTagRegexes {
-            result = regex.stringByReplacingMatches(in: result, range: range(), withTemplate: "")
-        }
-
-        // Strip event handlers
-        result = eventHandlerRegex.stringByReplacingMatches(in: result, range: range(), withTemplate: "")
-
-        // Strip javascript: URLs
-        result = jsURLRegex.stringByReplacingMatches(in: result, range: range(), withTemplate: "")
-
-        // Strip data: URLs in href/action (allow in src for images)
-        result = dataURLRegex.stringByReplacingMatches(in: result, range: range(), withTemplate: "")
-
-        // Strip CSS expressions (defense-in-depth against style-based XSS)
-        result = cssExpressionRegex.stringByReplacingMatches(in: result, range: range(), withTemplate: "/* blocked */")
-
-        return result
+            .replacingOccurrences(of: "'", with: "&#39;")
     }
 
     // MARK: - Alerts
@@ -281,9 +215,12 @@ struct MarkdownRenderer {
     // MARK: - Color Chips
 
     private static let colorChipRegexes: [NSRegularExpression] = [
+        // Hex: #RGB, #RRGGBB, #RRGGBBAA — only hex chars allowed
         try! NSRegularExpression(pattern: "<code>(#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8}))</code>"),
-        try! NSRegularExpression(pattern: "<code>(rgba?\\([^)]+\\))</code>"),
-        try! NSRegularExpression(pattern: "<code>(hsla?\\([^)]+\\))</code>"),
+        // rgb/rgba: only digits, commas, spaces, dots, % allowed inside parens
+        try! NSRegularExpression(pattern: "<code>(rgba?\\([0-9,\\s.%]+\\))</code>"),
+        // hsl/hsla: only digits, commas, spaces, dots, % allowed inside parens
+        try! NSRegularExpression(pattern: "<code>(hsla?\\([0-9,\\s.%]+\\))</code>"),
     ]
     private static let colorChipTemplate = "<code><span class=\"color-chip\" style=\"background-color: $1;\"></span>$1</code>"
 

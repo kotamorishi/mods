@@ -102,12 +102,39 @@ struct WelcomeView: View {
         }
     }
 
-    /// Convert mods:// URLs to file URLs. e.g. mods:///Users/me/doc.md → file:///Users/me/doc.md
+    /// Convert mods:// URLs to file URLs with security validation.
     private static func resolveURL(_ url: URL) -> URL {
         if url.scheme == "mods" {
-            return URL(fileURLWithPath: url.path)
+            return URLValidator.resolve(modsURL: url) ?? url
         }
         return url
+    }
+}
+
+/// Validates and resolves file URLs for security.
+enum URLValidator {
+    private static let allowedExtensions: Set<String> = ["md", "markdown", "mdown", "mkd", "txt"]
+
+    /// Resolve a mods:// URL to a safe file URL.
+    static func resolve(modsURL url: URL) -> URL? {
+        let fileURL = URL(fileURLWithPath: url.path).standardizedFileURL
+        guard allowedExtensions.contains(fileURL.pathExtension.lowercased()) else {
+            return nil
+        }
+        // Block path traversal
+        guard !fileURL.path.contains("..") else { return nil }
+        return fileURL
+    }
+
+    /// Validate any URL for safe file opening.
+    static func isSafe(_ url: URL) -> Bool {
+        if url.scheme == "mods" {
+            return resolve(modsURL: url) != nil
+        }
+        if url.isFileURL {
+            return allowedExtensions.contains(url.pathExtension.lowercased())
+        }
+        return true
     }
 }
 
@@ -229,7 +256,7 @@ struct FileView: View {
                 return true
             }
             .onOpenURL { url in
-                let resolved = url.scheme == "mods" ? URL(fileURLWithPath: url.path) : url
+                let resolved = url.scheme == "mods" ? (URLValidator.resolve(modsURL: url) ?? url) : url
                 openWindow(value: resolved)
             }
             .onDisappear {

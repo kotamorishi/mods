@@ -1,8 +1,10 @@
 import Foundation
+import os
 
 /// Watches a file for modifications using GCD dispatch source.
+/// Thread-safe: all access to `source` is protected by a lock.
 final class FileWatcher: @unchecked Sendable {
-    private var source: DispatchSourceFileSystemObject?
+    private let lock = OSAllocatedUnfairLock<DispatchSourceFileSystemObject?>(initialState: nil)
     private let url: URL
     private let onChange: @Sendable () -> Void
 
@@ -12,27 +14,34 @@ final class FileWatcher: @unchecked Sendable {
     }
 
     func start() {
+        stop() // Prevent fd leak if start() called multiple times
+
         let fd = open(url.path, O_EVTONLY)
         guard fd >= 0 else { return }
 
-        let source = DispatchSource.makeFileSystemObjectSource(
+        let newSource = DispatchSource.makeFileSystemObjectSource(
             fileDescriptor: fd,
             eventMask: [.write, .rename, .delete],
             queue: DispatchQueue.global(qos: .utility)
         )
-        source.setEventHandler { [onChange] in
+        newSource.setEventHandler { [onChange] in
             onChange()
         }
-        source.setCancelHandler {
+        newSource.setCancelHandler {
             close(fd)
         }
-        source.resume()
-        self.source = source
+        newSource.resume()
+
+        lock.withLock { $0 = newSource }
     }
 
     func stop() {
-        source?.cancel()
-        source = nil
+        let existing = lock.withLock { source -> DispatchSourceFileSystemObject? in
+            let old = source
+            source = nil
+            return old
+        }
+        existing?.cancel()
     }
 
     deinit {

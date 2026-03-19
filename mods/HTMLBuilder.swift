@@ -89,15 +89,44 @@ enum HTMLBuilder {
     /// Load user custom CSS from Application Support/mods/custom.css if it exists.
     /// Uses Application Support (sandbox-safe) with fallback to ~/.config/mods/.
     private static func loadUserCSS() -> String {
+        var css: String?
         if let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
             let primaryURL = appSupport.appendingPathComponent("mods/custom.css")
-            if let css = try? String(contentsOf: primaryURL, encoding: .utf8) {
-                return css
-            }
+            css = try? String(contentsOf: primaryURL, encoding: .utf8)
         }
-        let home = FileManager.default.homeDirectoryForCurrentUser
-        let fallbackURL = home.appendingPathComponent(".config/mods/custom.css")
-        return (try? String(contentsOf: fallbackURL, encoding: .utf8)) ?? ""
+        if css == nil {
+            let home = FileManager.default.homeDirectoryForCurrentUser
+            let fallbackURL = home.appendingPathComponent(".config/mods/custom.css")
+            css = try? String(contentsOf: fallbackURL, encoding: .utf8)
+        }
+        guard let raw = css else { return "" }
+        return sanitizeCSS(raw)
+    }
+
+    /// Sanitize user CSS to prevent exfiltration and injection attacks.
+    private static let unsafeCSSPatterns: [NSRegularExpression] = [
+        // @import can load external stylesheets
+        try! NSRegularExpression(pattern: "@import\\b[^;]*;", options: .caseInsensitive),
+        // url() with http/https can exfiltrate data
+        try! NSRegularExpression(pattern: "url\\s*\\(\\s*[\"']?\\s*https?://[^)]*\\)", options: .caseInsensitive),
+        // url() with javascript: is an XSS vector
+        try! NSRegularExpression(pattern: "url\\s*\\(\\s*[\"']?\\s*javascript:[^)]*\\)", options: .caseInsensitive),
+        // url() with data: can embed scripts
+        try! NSRegularExpression(pattern: "url\\s*\\(\\s*[\"']?\\s*data:[^)]*\\)", options: .caseInsensitive),
+        // IE expression() is an XSS vector
+        try! NSRegularExpression(pattern: "expression\\s*\\([^)]*\\)", options: .caseInsensitive),
+    ]
+
+    private static func sanitizeCSS(_ css: String) -> String {
+        var result = css
+        for pattern in unsafeCSSPatterns {
+            result = pattern.stringByReplacingMatches(
+                in: result,
+                range: NSRange(result.startIndex..., in: result),
+                withTemplate: "/* blocked */"
+            )
+        }
+        return result
     }
 
     private static let _baseHead: String = {
@@ -106,7 +135,7 @@ enum HTMLBuilder {
         <html>
         <head>
         <meta charset="utf-8">
-        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src https: http: data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none';">
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'none'; img-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none';">
         <meta name="referrer" content="no-referrer">
         \(styleBlock())
         </head>
