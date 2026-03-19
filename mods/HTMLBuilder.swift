@@ -242,6 +242,12 @@ enum HTMLBuilder {
         if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
             bar.style.background = 'rgba(13,17,23,0.95)';
             bar.style.borderBottomColor = '#3d444d';
+            var darkEls = bar.querySelectorAll('input, button');
+            darkEls.forEach(function(el) {
+                el.style.background = '#161b22';
+                el.style.borderColor = '#3d444d';
+                el.style.color = '#e6edf3';
+            });
         }
 
         var input = document.getElementById('__mods-find-input');
