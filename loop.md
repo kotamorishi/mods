@@ -156,17 +156,33 @@ Go back to step 1. Stop after 3 cycles per session unless instructed otherwise.
 | 68 | UX | Add Cmd+0 to reset zoom to 100% |
 | 69 | Quality | Extract duplicated NSOpenPanel into FilePickerHelper |
 | 70 | Quality | Fix FilePickerHelper MainActor warning, final Release check |
+| 71 | Security | Expand sanitization: block SVG, meta, base, link, CSS expressions |
+| 72 | Security | Thread-safe cmark-gfm extension registration (dispatch_once) |
+| 73 | Security | Fix sanitization bypass with unquoted attribute values |
+| 74 | Security | Fix JS injection via crafted markdown headings in TOC |
+| 75 | Security | Replace 7/8 nonisolated(unsafe) with thread-safe patterns |
+| 76 | Security | Audit dependency versions — all current, no known CVEs |
 
 ## Backlog
 
 1. **Homebrew formula** — `brew install --cask mods`
 2. **Test coverage** — unit tests for MarkdownRenderer, HTMLBuilder
 
+## Dependency Versions (audited cycle 76)
+
+| Library | Version | License | CVEs |
+|---------|---------|---------|------|
+| highlight.js | 11.11.1 | BSD-3-Clause | None |
+| KaTeX | 0.16.22 | MIT | None |
+| Mermaid | 11.x | MIT | None |
+| cmark-gfm | 0.29.0.gfm.13 | BSD-2-Clause | None |
+| gemoji | 1913 entries | MIT | N/A |
+
 ## Stats
 
 - **App size**: 6.2 MB (Release)
-- **Source**: 1352 lines Swift, 6 files + 1 QL extension
+- **Source**: ~1350 lines Swift, 6 files + 1 QL extension
 - **Build warnings**: 0
-- **Commits**: 96
-- **Improvement cycles**: 70
+- **Improvement cycles**: 76
 - **Features**: 26
+- **Security layers**: 9 (sanitization, CSP, content JS, navigation, images, referrer, thread safety, context menu, input validation)
