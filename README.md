@@ -71,9 +71,18 @@ xcodebuild -project mods.xcodeproj -scheme mods clean
 
 ## Custom CSS
 
-Override default styles by creating `~/.config/mods/custom.css`:
+Override default styles by creating a custom CSS file:
+
+```bash
+# App Store / sandboxed builds:
+mkdir -p ~/Library/Application\ Support/mods
+# Development builds (fallback):
+mkdir -p ~/.config/mods
+```
 
 ```css
+/* ~/Library/Application Support/mods/custom.css */
+
 /* Example: wider content, larger font */
 body { max-width: 1200px; font-size: 18px; }
 

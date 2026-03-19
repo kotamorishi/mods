@@ -100,11 +100,20 @@ enum HTMLBuilder {
         return block
     }
 
-    /// Load user custom CSS from ~/.config/mods/custom.css if it exists.
+    /// Load user custom CSS from Application Support/mods/custom.css if it exists.
+    /// Uses Application Support (sandbox-safe) with fallback to ~/.config/mods/.
     private static func loadUserCSS() -> String {
+        // Primary: ~/Library/Application Support/mods/custom.css (sandbox-safe)
+        if let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
+            let primaryURL = appSupport.appendingPathComponent("mods/custom.css")
+            if let css = try? String(contentsOf: primaryURL, encoding: .utf8) {
+                return css
+            }
+        }
+        // Fallback: ~/.config/mods/custom.css (non-sandboxed dev builds)
         let home = FileManager.default.homeDirectoryForCurrentUser
-        let cssURL = home.appendingPathComponent(".config/mods/custom.css")
-        return (try? String(contentsOf: cssURL, encoding: .utf8)) ?? ""
+        let fallbackURL = home.appendingPathComponent(".config/mods/custom.css")
+        return (try? String(contentsOf: fallbackURL, encoding: .utf8)) ?? ""
     }
 
     /// Shell page head: CSS only (JS via WKUserScript).
