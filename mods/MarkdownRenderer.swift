@@ -4,9 +4,16 @@ import CMarkGFM
 struct MarkdownRenderer {
     nonisolated(unsafe) private static var emojiMap: [String: String]? = nil
 
+    /// Thread-safe one-time registration of cmark-gfm extensions.
+    /// Uses static let dispatch_once pattern to guarantee single execution.
+    private static let extensionsRegistered: Bool = {
+        cmark_gfm_core_extensions_ensure_registered()
+        return true
+    }()
+
     /// Convert a Markdown string to HTML using cmark-gfm with all GFM extensions.
     static func renderToHTML(_ markdown: String) -> String {
-        cmark_gfm_core_extensions_ensure_registered()
+        _ = extensionsRegistered
 
         let options = CMARK_OPT_DEFAULT
             | CMARK_OPT_UNSAFE
