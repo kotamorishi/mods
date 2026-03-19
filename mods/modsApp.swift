@@ -219,7 +219,7 @@ struct FileView: View {
                     .help("Toggle Outline")
                 }
                 ToolbarItem {
-                    ControlGroup {
+                    HStack(spacing: 4) {
                         Button {
                             zoomLevel = max(0.25, zoomLevel - 0.1)
                         } label: {
