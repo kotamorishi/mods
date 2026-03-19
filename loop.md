@@ -154,18 +154,21 @@ Go back to step 1. Stop after 3 cycles per session unless instructed otherwise.
 | Navigation blocking | Links open in default browser, not in WebView |
 | Accessibility | ARIA labels on all JS-injected UI elements |
 
+| 60 | Feature | Floating back-to-top button for long documents |
+| 61 | Feature | Custom CSS support via ~/.config/mods/custom.css |
+| 62 | Bug | Fix custom CSS path for sandboxed App Store builds |
+
 ## Backlog
 
-1. **Custom CSS** — allow user to override styles via preferences
-2. **Homebrew formula** — `brew install --cask mods` for easy installation
-3. **Test coverage** — unit tests for MarkdownRenderer, HTMLBuilder
-4. **Syntax theme selection** — light/dark highlight.js themes
-5. **Back to top** — floating button for long documents
+1. **Homebrew formula** — `brew install --cask mods` for easy installation
+2. **Test coverage** — unit tests for MarkdownRenderer, HTMLBuilder
+3. **Syntax theme selection** — light/dark highlight.js themes
 
 ## Stats
 
 - **App size**: 6.2 MB (Release)
-- **Source**: 1199 lines Swift, 6 files + 1 QL extension
+- **Source**: 1323 lines Swift, 6 files + 1 QL extension
 - **Build warnings**: 0
-- **Improvement cycles**: 59
-- **Features**: 23
+- **Commits**: 88
+- **Improvement cycles**: 63
+- **Features**: 25
