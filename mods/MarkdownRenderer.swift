@@ -113,6 +113,14 @@ struct MarkdownRenderer {
         try! NSRegularExpression(pattern: "<object[^>]*>[\\s\\S]*?</object>", options: .caseInsensitive),
         try! NSRegularExpression(pattern: "<embed[^>]*>", options: .caseInsensitive),
         try! NSRegularExpression(pattern: "<form[^>]*>[\\s\\S]*?</form>", options: .caseInsensitive),
+        // SVG can contain <script>, <foreignObject>, event handlers
+        try! NSRegularExpression(pattern: "<svg[^>]*>[\\s\\S]*?</svg>", options: .caseInsensitive),
+        // Meta refresh can redirect
+        try! NSRegularExpression(pattern: "<meta[^>]*http-equiv[^>]*>", options: .caseInsensitive),
+        // Base tag can change URL resolution
+        try! NSRegularExpression(pattern: "<base[^>]*>", options: .caseInsensitive),
+        // Link tag can load external resources
+        try! NSRegularExpression(pattern: "<link[^>]*>", options: .caseInsensitive),
     ]
 
     /// Event handler attributes (onclick, onerror, onload, etc.)
@@ -133,6 +141,12 @@ struct MarkdownRenderer {
         options: .caseInsensitive
     )
 
+    /// CSS expressions (IE legacy) and javascript in style attributes
+    private static let cssExpressionRegex = try! NSRegularExpression(
+        pattern: "expression\\s*\\(|url\\s*\\(\\s*[\"']?\\s*javascript:",
+        options: .caseInsensitive
+    )
+
     private static func sanitizeHTML(_ html: String) -> String {
         var result = html
         let range = { NSRange(result.startIndex..., in: result) }
@@ -150,6 +164,9 @@ struct MarkdownRenderer {
 
         // Strip data: URLs in href/action (allow in src for images)
         result = dataURLRegex.stringByReplacingMatches(in: result, range: range(), withTemplate: "")
+
+        // Strip CSS expressions (defense-in-depth against style-based XSS)
+        result = cssExpressionRegex.stringByReplacingMatches(in: result, range: range(), withTemplate: "/* blocked */")
 
         return result
     }
