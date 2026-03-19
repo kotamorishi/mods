@@ -227,6 +227,22 @@ enum HTMLBuilder {
     };
     window.__modsPostProcess();
 
+    // Back to top button
+    (function() {
+        var btn = document.createElement('div');
+        btn.className = '__mods-back-top';
+        btn.textContent = '↑';
+        btn.setAttribute('role', 'button');
+        btn.setAttribute('aria-label', 'Back to top');
+        btn.addEventListener('click', function() {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+        document.body.appendChild(btn);
+        window.addEventListener('scroll', function() {
+            btn.classList.toggle('visible', window.scrollY > 300);
+        });
+    })();
+
     // Find bar
     (function() {
         var bar = document.createElement('div');
