@@ -108,6 +108,11 @@ Go back to step 1. Stop after 3 cycles per session unless instructed otherwise.
 | 39 | Security | Fix CSP to allow click-to-load images while blocking other resources |
 | 40 | Quality | Update loop.md with cycles 32-39 and final status |
 | 41 | Feature | Add Cmd+P print support via WKWebView print operation |
+| 42 | Feature | Multiple windows: each file opens in its own window |
+| 43 | Feature | File > Open Recent via NSDocumentController |
+| 44 | Feature | Export as PDF (Cmd+Shift+E) via WKWebView createPDF |
+| 45 | Feature | Word count and reading time status bar |
+| 46 | Feature | Table of Contents popover for heading navigation |
 
 ## Features
 
@@ -117,6 +122,11 @@ Go back to step 1. Stop after 3 cycles per session unless instructed otherwise.
 | External image blocking | Block auto-loading, click-to-load placeholder |
 | Search (Cmd+F) | Find bar with live highlighting, match count, next/close |
 | Print (Cmd+P) | Print rendered markdown via system print dialog |
+| Export PDF (Cmd+Shift+E) | Save rendered markdown as PDF |
+| Multiple windows | Each file opens in its own window |
+| Open Recent | File > Open Recent menu |
+| Word count | Status bar with word count and reading time |
+| Table of Contents | Toolbar popover with heading outline navigation |
 | Encoding fallback | UTF-8 → Latin-1 → Shift-JIS → UTF-16 → ASCII |
 | Security: Content JS | Page JS disabled, WKUserScript bypasses |
 | Security: Sanitization | Strip dangerous tags, event handlers, javascript: URLs |
@@ -126,13 +136,11 @@ Go back to step 1. Stop after 3 cycles per session unless instructed otherwise.
 
 ## Backlog (prioritized)
 
-1. **Multiple windows** — open each file in a new window instead of replacing current content
-2. **Recent files** — File > Open Recent menu with recently viewed files
-3. **Accessibility** — VoiceOver support, keyboard navigation in find bar
-4. **Table of contents** — sidebar or popup showing heading outline for navigation
-5. **Export to PDF** — save rendered markdown as PDF
-6. **Word count** — status bar showing word/character count
-7. **Custom CSS** — allow user to override styles via preferences
-8. **URL scheme** — `mods://open?file=/path/to/file.md` for scriptability
-9. **Homebrew formula** — `brew install --cask mods` for easy installation
-10. **Test coverage** — unit tests for MarkdownRenderer, HTMLBuilder
+1. **Accessibility** — VoiceOver support, keyboard navigation in find bar
+2. **Custom CSS** — allow user to override styles via preferences
+3. **URL scheme** — `mods://open?file=/path/to/file.md` for scriptability
+4. **Homebrew formula** — `brew install --cask mods` for easy installation
+5. **Test coverage** — unit tests for MarkdownRenderer, HTMLBuilder
+6. **Syntax theme selection** — light/dark highlight.js themes
+7. **Copy code block** — button to copy code blocks to clipboard
+8. **Back to top** — floating button for long documents
