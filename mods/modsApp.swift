@@ -81,7 +81,7 @@ struct WelcomeView: View {
             .onDrop(of: [.fileURL], isTargeted: nil) { providers in
                 guard let provider = providers.first else { return false }
                 _ = provider.loadObject(ofClass: URL.self) { url, _ in
-                    if let url {
+                    if let url, URLValidator.isSafe(url) {
                         DispatchQueue.main.async {
                             openWindow(value: url)
                             dismissWindow(id: "welcome")
@@ -113,26 +113,27 @@ struct WelcomeView: View {
 
 /// Validates and resolves file URLs for security.
 enum URLValidator {
-    private static let allowedExtensions: Set<String> = ["md", "markdown", "mdown", "mkd", "txt"]
+    /// Strict: only markdown extensions (for mods:// URL scheme — external input)
+    private static let markdownExtensions: Set<String> = ["md", "markdown", "mdown", "mkd"]
+    /// Permissive: also allow plain text (for drag & drop, File > Open — user-initiated)
+    private static let viewableExtensions: Set<String> = ["md", "markdown", "mdown", "mkd", "txt"]
 
-    /// Resolve a mods:// URL to a safe file URL.
+    /// Resolve a mods:// URL to a safe file URL (strict: markdown only).
     static func resolve(modsURL url: URL) -> URL? {
         let fileURL = URL(fileURLWithPath: url.path).standardizedFileURL
-        guard allowedExtensions.contains(fileURL.pathExtension.lowercased()) else {
+        guard markdownExtensions.contains(fileURL.pathExtension.lowercased()) else {
             return nil
         }
-        // Block path traversal
-        guard !fileURL.path.contains("..") else { return nil }
         return fileURL
     }
 
-    /// Validate any URL for safe file opening.
+    /// Validate a file URL for safe opening (permissive: user-initiated).
     static func isSafe(_ url: URL) -> Bool {
         if url.scheme == "mods" {
             return resolve(modsURL: url) != nil
         }
         if url.isFileURL {
-            return allowedExtensions.contains(url.pathExtension.lowercased())
+            return viewableExtensions.contains(url.pathExtension.lowercased())
         }
         return true
     }
@@ -247,7 +248,7 @@ struct FileView: View {
             .onDrop(of: [.fileURL], isTargeted: nil) { providers in
                 guard let provider = providers.first else { return false }
                 _ = provider.loadObject(ofClass: URL.self) { url, _ in
-                    if let url {
+                    if let url, URLValidator.isSafe(url) {
                         DispatchQueue.main.async {
                             openWindow(value: url)
                         }

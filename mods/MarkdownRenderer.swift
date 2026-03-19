@@ -116,8 +116,9 @@ struct MarkdownRenderer {
 
     private static let alertDefs: [(regex: NSRegularExpression, cssClass: String, title: String)] = {
         ["NOTE", "TIP", "IMPORTANT", "WARNING", "CAUTION"].map { type in
+            // Match alert blockquote without crossing into other blockquotes
             let regex = try! NSRegularExpression(
-                pattern: "<blockquote>\\n<p>\\[!\(type)\\](?:<br>)?\\n([\\s\\S]*?)</blockquote>"
+                pattern: "<blockquote>\\n<p>\\[!\(type)\\](?:<br>)?\\n((?:(?!<blockquote>)[\\s\\S])*?)</blockquote>"
             )
             let cssClass = type.lowercased()
             let title = type.prefix(1).uppercased() + type.dropFirst().lowercased()
