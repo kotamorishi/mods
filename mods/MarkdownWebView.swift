@@ -9,6 +9,7 @@ struct MarkdownWebView: NSViewRepresentable {
         var currentMarkdown: String = ""
         var isInitialLoadDone = false
         var lastHTML: String = ""
+        var pendingPostLoadJS: String = ""
 
         @MainActor
         func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction) async -> WKNavigationActionPolicy {
@@ -17,6 +18,14 @@ struct MarkdownWebView: NSViewRepresentable {
                 return .cancel
             }
             return .allow
+        }
+
+        /// After page finishes loading, inject conditional JS (mermaid/katex).
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            if !pendingPostLoadJS.isEmpty {
+                webView.evaluateJavaScript(pendingPostLoadJS)
+                pendingPostLoadJS = ""
+            }
         }
 
         /// Recover from WebKit process crash by reloading the last content.
@@ -38,6 +47,7 @@ struct MarkdownWebView: NSViewRepresentable {
         let bodyHTML = MarkdownRenderer.renderToHTML(markdown)
         let html = HTMLBuilder.buildHTML(bodyHTML: bodyHTML)
         context.coordinator.lastHTML = html
+        context.coordinator.pendingPostLoadJS = HTMLBuilder.conditionalJS(for: bodyHTML)
         webView.loadHTMLString(html, baseURL: nil)
         return webView
     }
@@ -59,40 +69,13 @@ struct MarkdownWebView: NSViewRepresentable {
     }
 
     /// Fast content update: swap #content innerHTML via JS and re-run post-processing.
+    /// Uses evaluateJavaScript() which bypasses allowsContentJavaScript = false.
     private func updateContentViaJS(webView: WKWebView) {
         let bodyHTML = MarkdownRenderer.renderToHTML(markdown)
 
         var js = "document.getElementById('content').innerHTML = \(HTMLBuilder.jsonEncode(bodyHTML));\n"
-
-        if HTMLBuilder.needsMermaid(bodyHTML) {
-            js += """
-            if (typeof mermaid === 'undefined') {
-                var s = document.createElement('script');
-                s.textContent = \(HTMLBuilder.jsonEncode(HTMLBuilder.cachedResource("mermaid.min", type: "js")));
-                document.head.appendChild(s);
-            }
-
-            """
-        }
-        if HTMLBuilder.needsMath(bodyHTML) {
-            js += """
-            if (typeof katex === 'undefined') {
-                var ks = document.createElement('style');
-                ks.textContent = \(HTMLBuilder.jsonEncode(HTMLBuilder.cachedResource("katex.min", type: "css")));
-                document.head.appendChild(ks);
-                var k1 = document.createElement('script');
-                k1.textContent = \(HTMLBuilder.jsonEncode(HTMLBuilder.cachedResource("katex.min", type: "js")));
-                document.head.appendChild(k1);
-                var k2 = document.createElement('script');
-                k2.textContent = \(HTMLBuilder.jsonEncode(HTMLBuilder.cachedResource("katex-auto-render.min", type: "js")));
-                document.head.appendChild(k2);
-            }
-
-            """
-        }
-
         js += "window.scrollTo(0, 0);\n"
-        js += "window.__modsPostProcess();\n"
+        js += HTMLBuilder.conditionalJS(for: bodyHTML)
 
         webView.evaluateJavaScript(js)
     }

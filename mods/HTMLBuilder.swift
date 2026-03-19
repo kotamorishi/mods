@@ -202,11 +202,30 @@ enum HTMLBuilder {
     // MARK: - HTML Assembly
 
     /// Build a complete HTML page from rendered markdown body.
+    /// Note: no inline <script> tags — JS is disabled at page level.
+    /// Mermaid/KaTeX are injected post-load via evaluateJavaScript().
     static func buildHTML(bodyHTML: String) -> String {
-        var conditionalScripts = ""
-        if needsMermaid(bodyHTML) { conditionalScripts += mermaidScript() }
-        if needsMath(bodyHTML) { conditionalScripts += katexHead() }
-        return baseHead() + bodyHTML + "</div>\n" + conditionalScripts + "</body>\n</html>"
+        // KaTeX CSS is safe (not script), include it if needed
+        var extraCSS = ""
+        if needsMath(bodyHTML) {
+            extraCSS = "<style>\(cachedResource("katex.min", type: "css"))</style>\n"
+        }
+        return baseHead() + extraCSS + bodyHTML + "</div>\n</body>\n</html>"
+    }
+
+    /// Build JS to inject conditional libraries (mermaid, katex) and run post-processing.
+    /// Called via evaluateJavaScript() which bypasses allowsContentJavaScript = false.
+    static func conditionalJS(for bodyHTML: String) -> String {
+        var js = ""
+        if needsMermaid(bodyHTML) {
+            js += "if (typeof mermaid === 'undefined') { \(cachedResource("mermaid.min", type: "js")) }\n"
+        }
+        if needsMath(bodyHTML) {
+            js += "if (typeof katex === 'undefined') { \(cachedResource("katex.min", type: "js")) }\n"
+            js += "if (typeof renderMathInElement === 'undefined') { \(cachedResource("katex-auto-render.min", type: "js")) }\n"
+        }
+        js += "window.__modsPostProcess();\n"
+        return js
     }
 
     // MARK: - Utilities
