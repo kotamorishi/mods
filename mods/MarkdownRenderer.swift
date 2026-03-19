@@ -59,8 +59,13 @@ struct MarkdownRenderer {
         pattern: "<img\\s+([^>]*?)src\\s*=\\s*([\"'])(https?://[^\"']+)\\2([^>]*?)>",
         options: .caseInsensitive
     )
+    private static let altTextRegex = try! NSRegularExpression(
+        pattern: "alt\\s*=\\s*[\"']([^\"']*)[\"']",
+        options: .caseInsensitive
+    )
 
     private static func blockExternalImages(_ html: String) -> String {
+        guard html.contains("<img") else { return html }
         let nsHtml = html as NSString
         let range = NSRange(location: 0, length: nsHtml.length)
         let matches = externalImgRegex.matches(in: html, range: range).reversed()
@@ -72,12 +77,9 @@ struct MarkdownRenderer {
             let url = nsHtml.substring(with: match.range(at: 3))
             let postAttrs = nsHtml.substring(with: match.range(at: 4))
 
-            // Extract alt text if present
-            let altMatch = try? NSRegularExpression(pattern: "alt\\s*=\\s*[\"']([^\"']*)[\"']").firstMatch(
-                in: preAttrs + postAttrs,
-                range: NSRange(location: 0, length: (preAttrs + postAttrs).utf16.count)
-            )
-            let altText = altMatch.map { (preAttrs + postAttrs as NSString).substring(with: $0.range(at: 1)) } ?? "External image"
+            let combined = preAttrs + postAttrs
+            let altMatch = altTextRegex.firstMatch(in: combined, range: NSRange(location: 0, length: combined.utf16.count))
+            let altText = altMatch.map { (combined as NSString).substring(with: $0.range(at: 1)) } ?? "External image"
 
             let placeholder = """
             <div class="blocked-image" data-img-src="\(escapeHTML(url))" data-img-pre="\(escapeHTML(preAttrs))" data-img-post="\(escapeHTML(postAttrs))">
