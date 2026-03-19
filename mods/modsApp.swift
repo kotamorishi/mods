@@ -170,6 +170,11 @@ struct FileView: View {
                     Text("·")
                     Text(readingTime)
                     Spacer()
+                    if let fileURL {
+                        Text(fileURL.deletingLastPathComponent().path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
+                            .lineLimit(1)
+                            .truncationMode(.head)
+                    }
                 }
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
