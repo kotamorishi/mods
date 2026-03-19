@@ -131,20 +131,21 @@ struct MarkdownRenderer {
     ]
 
     /// Event handler attributes (onclick, onerror, onload, etc.)
+    /// Handles quoted: onerror="..." and unquoted: onerror=alert(1)
     private static let eventHandlerRegex = try! NSRegularExpression(
-        pattern: "\\s+on\\w+\\s*=\\s*([\"'])[\\s\\S]*?\\1",
+        pattern: "\\s+on\\w+\\s*=\\s*(?:([\"'])[\\s\\S]*?\\1|[^\\s>]+)",
         options: .caseInsensitive
     )
 
-    /// javascript: URLs in href/src attributes
+    /// javascript: URLs in href/src attributes (quoted and unquoted)
     private static let jsURLRegex = try! NSRegularExpression(
-        pattern: "(href|src|action)\\s*=\\s*([\"'])\\s*javascript:[\\s\\S]*?\\2",
+        pattern: "(href|src|action)\\s*=\\s*(?:([\"'])\\s*javascript:[\\s\\S]*?\\2|javascript:[^\\s>]*)",
         options: .caseInsensitive
     )
 
-    /// data: URLs (potential XSS vector) except for images
+    /// data: URLs (potential XSS vector) except for images (quoted and unquoted)
     private static let dataURLRegex = try! NSRegularExpression(
-        pattern: "(href|action)\\s*=\\s*([\"'])\\s*data:[\\s\\S]*?\\2",
+        pattern: "(href|action)\\s*=\\s*(?:([\"'])\\s*data:[\\s\\S]*?\\2|data:[^\\s>]*)",
         options: .caseInsensitive
     )
 
