@@ -185,6 +185,8 @@ enum HTMLBuilder {
             var btn = document.createElement('button');
             btn.className = '__mods-copy-btn';
             btn.textContent = 'Copy';
+            btn.setAttribute('aria-label', 'Copy code to clipboard');
+            btn.setAttribute('role', 'button');
             btn.addEventListener('click', function() { __modsCopyText(code.textContent, btn); });
             pre.appendChild(btn);
         });
@@ -206,6 +208,10 @@ enum HTMLBuilder {
         }
         // Blocked external images — click to load
         document.querySelectorAll('.blocked-image').forEach(function(el) {
+            el.setAttribute('role', 'button');
+            el.setAttribute('aria-label', 'Load external image: ' + (el.getAttribute('data-img-src') || ''));
+            el.setAttribute('tabindex', '0');
+            el.addEventListener('keydown', function(e) { if (e.key === 'Enter') el.click(); });
             el.addEventListener('click', function() {
                 var src = el.getAttribute('data-img-src');
                 if (src) {
@@ -225,8 +231,10 @@ enum HTMLBuilder {
     (function() {
         var bar = document.createElement('div');
         bar.id = '__mods-find-bar';
+        bar.setAttribute('role', 'search');
+        bar.setAttribute('aria-label', 'Find in document');
         bar.style.cssText = 'display:none;position:fixed;top:0;left:0;right:0;padding:8px 12px;background:rgba(246,248,250,0.95);backdrop-filter:blur(8px);border-bottom:1px solid #d0d7de;z-index:9999;font-family:-apple-system,sans-serif;font-size:13px;';
-        bar.innerHTML = '<div style="display:flex;align-items:center;max-width:900px;margin:0 auto;gap:8px;"><input id="__mods-find-input" type="text" placeholder="Find..." style="flex:1;padding:4px 8px;border:1px solid #d0d7de;border-radius:4px;font-size:13px;outline:none;"><span id="__mods-find-count" style="color:#656d76;min-width:40px;"></span><button onclick="window.__modsFindNext()" style="padding:2px 8px;border:1px solid #d0d7de;border-radius:4px;background:#fff;cursor:pointer;">Next</button><button onclick="window.__modsFindClose()" style="padding:2px 8px;border:1px solid #d0d7de;border-radius:4px;background:#fff;cursor:pointer;">✕</button></div>';
+        bar.innerHTML = '<div style="display:flex;align-items:center;max-width:900px;margin:0 auto;gap:8px;"><input id="__mods-find-input" type="text" placeholder="Find..." aria-label="Search text" style="flex:1;padding:4px 8px;border:1px solid #d0d7de;border-radius:4px;font-size:13px;outline:none;"><span id="__mods-find-count" aria-live="polite" style="color:#656d76;min-width:40px;"></span><button onclick="window.__modsFindNext()" aria-label="Next match" style="padding:2px 8px;border:1px solid #d0d7de;border-radius:4px;background:#fff;cursor:pointer;">Next</button><button onclick="window.__modsFindClose()" aria-label="Close find bar" style="padding:2px 8px;border:1px solid #d0d7de;border-radius:4px;background:#fff;cursor:pointer;">✕</button></div>';
         document.body.appendChild(bar);
 
         if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
