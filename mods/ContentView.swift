@@ -7,6 +7,7 @@ struct StartView: View {
     @State private var zoomLevel: Double = 1.0
     @State private var fileWatcher: FileWatcher?
     @State private var findTrigger: Int = 0
+    @State private var printTrigger: Int = 0
 
     var body: some View {
         Group {
@@ -15,7 +16,7 @@ struct StartView: View {
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                MarkdownWebView(markdown: markdown, zoomLevel: zoomLevel, findTrigger: findTrigger)
+                MarkdownWebView(markdown: markdown, zoomLevel: zoomLevel, findTrigger: findTrigger, printTrigger: printTrigger)
             }
         }
         .frame(minWidth: 400, minHeight: 300)
@@ -47,6 +48,7 @@ struct StartView: View {
         }
         .focusedSceneValue(\.openFileAction, openFile)
         .focusedSceneValue(\.findAction, performFind)
+        .focusedSceneValue(\.printAction, performPrint)
         .onOpenURL { url in
             loadURL(url)
         }
@@ -68,6 +70,10 @@ struct StartView: View {
 
     private func performFind() {
         findTrigger += 1
+    }
+
+    private func performPrint() {
+        printTrigger += 1
     }
 
     private func openFile() {

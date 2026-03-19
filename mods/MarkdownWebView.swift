@@ -5,6 +5,7 @@ struct MarkdownWebView: NSViewRepresentable {
     let markdown: String
     let zoomLevel: Double
     let findTrigger: Int
+    let printTrigger: Int
 
     class Coordinator: NSObject, WKNavigationDelegate {
         var currentMarkdown: String = ""
@@ -12,6 +13,7 @@ struct MarkdownWebView: NSViewRepresentable {
         var lastHTML: String = ""
         var pendingPostLoadJS: String = ""
         var lastFindTrigger: Int = 0
+        var lastPrintTrigger: Int = 0
 
         @MainActor
         func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction) async -> WKNavigationActionPolicy {
@@ -77,6 +79,12 @@ struct MarkdownWebView: NSViewRepresentable {
         if context.coordinator.lastFindTrigger != findTrigger {
             context.coordinator.lastFindTrigger = findTrigger
             webView.evaluateJavaScript("window.__modsToggleFind();")
+        }
+
+        // Print
+        if context.coordinator.lastPrintTrigger != printTrigger {
+            context.coordinator.lastPrintTrigger = printTrigger
+            webView.printOperation(with: .shared).runModal(for: webView.window ?? NSWindow(), delegate: nil, didRun: nil, contextInfo: nil)
         }
     }
 
