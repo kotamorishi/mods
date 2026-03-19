@@ -241,7 +241,7 @@ struct FileView: View {
                         }
                     }
                 }
-                ToolbarItem(placement: .secondaryAction) {
+                ToolbarItem(placement: .automatic) {
                     if showSearch {
                         HStack(spacing: 4) {
                             TextField("Search...", text: $searchText)
