@@ -4,6 +4,7 @@ import WebKit
 
 class PreviewViewController: NSViewController, QLPreviewingController, WKNavigationDelegate {
     var webView: WKWebView!
+    var pendingPostLoadJS: String = ""
 
     override func loadView() {
         webView = WKWebView(frame: .zero, configuration: HTMLBuilder.webViewConfiguration())
@@ -20,6 +21,13 @@ class PreviewViewController: NSViewController, QLPreviewingController, WKNavigat
         return .allow
     }
 
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        if !pendingPostLoadJS.isEmpty {
+            webView.evaluateJavaScript(pendingPostLoadJS)
+            pendingPostLoadJS = ""
+        }
+    }
+
     private static let maxFileSize: UInt64 = 10 * 1024 * 1024
 
     func preparePreviewOfFile(at url: URL, completionHandler handler: @escaping (Error?) -> Void) {
@@ -34,6 +42,7 @@ class PreviewViewController: NSViewController, QLPreviewingController, WKNavigat
         }
         let markdown = HTMLBuilder.readFileWithFallback(url: url)
         let bodyHTML = MarkdownRenderer.renderToHTML(markdown)
+        pendingPostLoadJS = HTMLBuilder.conditionalJS(for: bodyHTML)
         webView.loadHTMLString(HTMLBuilder.buildHTML(bodyHTML: bodyHTML), baseURL: nil)
         handler(nil)
     }
