@@ -51,33 +51,34 @@ struct MarkdownRenderer {
 
     // MARK: - Alerts
 
+    private static let alertDefs: [(regex: NSRegularExpression, cssClass: String, title: String)] = {
+        ["NOTE", "TIP", "IMPORTANT", "WARNING", "CAUTION"].map { type in
+            let regex = try! NSRegularExpression(
+                pattern: "<blockquote>\\n<p>\\[!\(type)\\](?:<br>)?\\n([\\s\\S]*?)</blockquote>"
+            )
+            let cssClass = type.lowercased()
+            let title = type.prefix(1).uppercased() + type.dropFirst().lowercased()
+            return (regex, cssClass, title)
+        }
+    }()
+
     private static func processAlerts(_ html: String) -> String {
         guard html.contains("<blockquote>") && html.contains("[!") else { return html }
-        let alertTypes = ["NOTE", "TIP", "IMPORTANT", "WARNING", "CAUTION"]
         var result = html
 
-        for type in alertTypes {
-            let typeLower = type.lowercased()
-            let typeTitle = type.prefix(1).uppercased() + type.dropFirst().lowercased()
-
-            // Match <blockquote> containing [!TYPE] at the start of the first <p>
-            let regex = try! NSRegularExpression(
-                pattern: "<blockquote>\\n<p>\\[!\(type)\\](?:<br>)?\\n([\\s\\S]*?)</blockquote>",
-                options: []
-            )
-
+        for def in alertDefs {
             var nsResult = result as NSString
-            var match = regex.firstMatch(in: result, range: NSRange(location: 0, length: nsResult.length))
+            var match = def.regex.firstMatch(in: result, range: NSRange(location: 0, length: nsResult.length))
             while let m = match {
                 let content = nsResult.substring(with: m.range(at: 1))
                 let replacement = """
-                <div class="markdown-alert markdown-alert-\(typeLower)">
-                <p class="markdown-alert-title">\(typeTitle)</p>
+                <div class="markdown-alert markdown-alert-\(def.cssClass)">
+                <p class="markdown-alert-title">\(def.title)</p>
                 \(content)</div>
                 """
                 nsResult = nsResult.replacingCharacters(in: m.range, with: replacement) as NSString
                 result = nsResult as String
-                match = regex.firstMatch(in: result, range: NSRange(location: 0, length: nsResult.length))
+                match = def.regex.firstMatch(in: result, range: NSRange(location: 0, length: nsResult.length))
             }
         }
 
