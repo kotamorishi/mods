@@ -418,6 +418,7 @@
 				CODE_SIGN_ENTITLEMENTS = "mods QuickLook Extension/mods QuickLook Extension.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 7M75V64ZE5;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "mods QuickLook Extension/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "mods QuickLook Extension";
@@ -442,6 +443,7 @@
 				CODE_SIGN_ENTITLEMENTS = "mods QuickLook Extension/mods QuickLook Extension.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 7M75V64ZE5;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "mods QuickLook Extension/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "mods QuickLook Extension";
