@@ -220,6 +220,7 @@ struct FileView: View {
                             .monospacedDigit()
                             .frame(minWidth: 40)
                     }
+                    .keyboardShortcut("0", modifiers: .command)
 
                     Button {
                         zoomLevel = min(5.0, zoomLevel + 0.1)
