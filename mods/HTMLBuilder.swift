@@ -168,7 +168,7 @@ enum HTMLBuilder {
     static let postProcessScript = """
     window.__modsPostProcess = function() {
         if (typeof mermaid !== 'undefined') {
-            mermaid.initialize({ startOnLoad: false, theme: window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default' });
+            mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default' });
             var mermaidBlocks = document.querySelectorAll('pre code.language-mermaid');
             mermaidBlocks.forEach(function(block) {
                 var pre = block.parentElement;
