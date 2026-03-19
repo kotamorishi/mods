@@ -135,7 +135,7 @@ enum HTMLBuilder {
         <html>
         <head>
         <meta charset="utf-8">
-        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'none'; img-src https: http: data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none';">
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src https: http: data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none';">
         <meta name="referrer" content="no-referrer">
         \(styleBlock())
         </head>
