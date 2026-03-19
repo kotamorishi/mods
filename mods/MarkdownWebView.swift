@@ -118,12 +118,13 @@ struct MarkdownWebView: NSViewRepresentable {
         // TOC scroll
         if context.coordinator.lastTOCTarget != tocScrollTarget && !tocScrollTarget.isEmpty {
             context.coordinator.lastTOCTarget = tocScrollTarget
-            let escaped = tocScrollTarget.replacingOccurrences(of: "'", with: "\\'")
+            let jsonTarget = HTMLBuilder.jsonEncode(tocScrollTarget)
             let js = """
             (function() {
+                var target = \(jsonTarget);
                 var headings = document.querySelectorAll('h1,h2,h3,h4,h5,h6');
                 for (var h of headings) {
-                    if (h.textContent.trim() === '\(escaped)') {
+                    if (h.textContent.trim() === target) {
                         h.scrollIntoView({ behavior: 'smooth', block: 'start' });
                         break;
                     }
