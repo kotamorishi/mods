@@ -299,7 +299,11 @@ enum HTMLBuilder {
             if (e.key === 'Enter') { window.__modsFindNext(); }
             if (e.key === 'Escape') { window.__modsFindClose(); }
         });
-        input.addEventListener('input', function() { window.__modsFindHighlight(); });
+        var __modsFindTimer = null;
+        input.addEventListener('input', function() {
+            clearTimeout(__modsFindTimer);
+            __modsFindTimer = setTimeout(function() { window.__modsFindHighlight(); }, 200);
+        });
 
         window.__modsToggleFind = function() {
             if (bar.style.display === 'none') {
@@ -311,12 +315,20 @@ enum HTMLBuilder {
             }
         };
 
-        window.__modsFindHighlight = function() {
-            document.querySelectorAll('.__mods-highlight').forEach(function(el) {
+        window.__modsClearHighlights = function() {
+            var highlights = document.querySelectorAll('.__mods-highlight');
+            if (highlights.length === 0) return;
+            highlights.forEach(function(el) {
                 el.replaceWith(el.textContent);
             });
+            // Merge adjacent text nodes split by previous highlights
+            document.getElementById('content').normalize();
+        };
+
+        window.__modsFindHighlight = function() {
+            window.__modsClearHighlights();
             var term = document.getElementById('__mods-find-input').value;
-            if (!term) { document.getElementById('__mods-find-count').textContent = ''; return; }
+            if (!term || term.length < 2) { document.getElementById('__mods-find-count').textContent = ''; return; }
             var content = document.getElementById('content');
             var walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT, null);
             var nodes = [];
@@ -366,9 +378,7 @@ enum HTMLBuilder {
 
         window.__modsFindClose = function() {
             bar.style.display = 'none';
-            document.querySelectorAll('.__mods-highlight').forEach(function(el) {
-                el.replaceWith(el.textContent);
-            });
+            window.__modsClearHighlights();
             document.getElementById('__mods-find-count').textContent = '';
             document.getElementById('__mods-find-input').value = '';
         };
