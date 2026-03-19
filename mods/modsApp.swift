@@ -102,10 +102,34 @@ struct FileView: View {
     @State private var printTrigger: Int = 0
     @State private var exportPDFTrigger: Int = 0
 
+    private var wordCount: Int {
+        markdown.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
+    }
+
+    private var readingTime: String {
+        let minutes = max(1, wordCount / 200)
+        return "\(minutes) min read"
+    }
+
     var body: some View {
-        MarkdownWebView(markdown: markdown, zoomLevel: zoomLevel, findTrigger: findTrigger, printTrigger: printTrigger, exportPDFTrigger: exportPDFTrigger)
-            .frame(minWidth: 400, minHeight: 300)
-            .navigationTitle(fileURL?.lastPathComponent ?? "mods")
+        VStack(spacing: 0) {
+            MarkdownWebView(markdown: markdown, zoomLevel: zoomLevel, findTrigger: findTrigger, printTrigger: printTrigger, exportPDFTrigger: exportPDFTrigger)
+            if !markdown.isEmpty {
+                HStack {
+                    Text("\(wordCount) words")
+                    Text("·")
+                    Text(readingTime)
+                    Spacer()
+                }
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 4)
+                .background(.bar)
+            }
+        }
+        .frame(minWidth: 400, minHeight: 300)
+        .navigationTitle(fileURL?.lastPathComponent ?? "mods")
             .toolbar {
                 ToolbarItemGroup {
                     Button {
