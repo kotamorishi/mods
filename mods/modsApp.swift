@@ -178,7 +178,16 @@ struct FileView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            MarkdownWebView(markdown: markdown, zoomLevel: zoomLevel, findTrigger: findTrigger, printTrigger: printTrigger, exportPDFTrigger: exportPDFTrigger, tocScrollTarget: tocScrollTarget)
+            HStack(spacing: 0) {
+                MarkdownWebView(markdown: markdown, zoomLevel: zoomLevel, findTrigger: findTrigger, printTrigger: printTrigger, exportPDFTrigger: exportPDFTrigger, tocScrollTarget: tocScrollTarget)
+
+                if showTOC && !headings.isEmpty {
+                    Divider()
+                    TOCSidebar(headings: headings) { heading in
+                        tocScrollTarget = heading
+                    }
+                }
+            }
             if !markdown.isEmpty {
                 HStack {
                     Text("\(wordCount) words")
@@ -202,19 +211,12 @@ struct FileView: View {
         .navigationTitle(fileURL?.lastPathComponent ?? "mods")
             .toolbar {
                 ToolbarItemGroup {
-                    if !headings.isEmpty {
-                        Button {
-                            showTOC.toggle()
-                        } label: {
-                            Image(systemName: "list.bullet")
-                        }
-                        .popover(isPresented: $showTOC) {
-                            TOCView(headings: headings) { heading in
-                                showTOC = false
-                                tocScrollTarget = heading
-                            }
-                        }
+                    Button {
+                        showTOC.toggle()
+                    } label: {
+                        Image(systemName: "list.bullet")
                     }
+                    .help("Toggle Outline")
 
                     Button {
                         zoomLevel = max(0.25, zoomLevel - 0.1)
@@ -354,36 +356,49 @@ extension FocusedValues {
     }
 }
 
-/// Table of contents popover showing heading outline.
-struct TOCView: View {
+/// VS Code-style outline sidebar showing heading hierarchy.
+struct TOCSidebar: View {
     let headings: [(level: Int, text: String)]
     let onSelect: (String) -> Void
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 2) {
-                ForEach(Array(headings.enumerated()), id: \.offset) { _, heading in
-                    Button {
-                        onSelect(heading.text)
-                    } label: {
-                        Text(heading.text)
-                            .font(.system(size: heading.level <= 2 ? 13 : 12,
-                                          weight: heading.level <= 2 ? .semibold : .regular))
-                            .foregroundStyle(heading.level <= 2 ? .primary : .secondary)
-                            .lineLimit(1)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.leading, CGFloat((heading.level - 1) * 12))
-                            .padding(.vertical, 3)
-                            .padding(.horizontal, 8)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                }
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("OUTLINE")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+                Spacer()
             }
-            .padding(8)
+            .padding(.horizontal, 12)
+            .padding(.top, 8)
+            .padding(.bottom, 4)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 1) {
+                    ForEach(Array(headings.enumerated()), id: \.offset) { _, heading in
+                        Button {
+                            onSelect(heading.text)
+                        } label: {
+                            Text(heading.text)
+                                .font(.system(size: heading.level <= 2 ? 12 : 11,
+                                              weight: heading.level <= 1 ? .semibold : .regular))
+                                .foregroundStyle(heading.level <= 2 ? .primary : .secondary)
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.leading, CGFloat((heading.level - 1) * 10))
+                                .padding(.vertical, 3)
+                                .padding(.horizontal, 12)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.bottom, 8)
+            }
         }
-        .frame(width: 260)
-        .frame(maxHeight: 400)
+        .frame(width: 220)
+        .background(.background)
     }
 }
 
