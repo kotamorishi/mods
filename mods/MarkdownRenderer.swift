@@ -153,44 +153,23 @@ struct MarkdownRenderer {
 
     // MARK: - Color Chips
 
+    private static let colorChipRegexes: [NSRegularExpression] = [
+        try! NSRegularExpression(pattern: "<code>(#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8}))</code>"),
+        try! NSRegularExpression(pattern: "<code>(rgba?\\([^)]+\\))</code>"),
+        try! NSRegularExpression(pattern: "<code>(hsla?\\([^)]+\\))</code>"),
+    ]
+    private static let colorChipTemplate = "<code><span class=\"color-chip\" style=\"background-color: $1;\"></span>$1</code>"
+
     private static func processColorChips(_ html: String) -> String {
-        // Fast check: no inline code means no color chips possible
         guard html.contains("<code>") else { return html }
         var result = html
-
-        // Hex colors: #RGB, #RRGGBB, #RRGGBBAA
-        let hexPattern = try! NSRegularExpression(
-            pattern: "<code>(#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8}))</code>",
-            options: []
-        )
-        result = hexPattern.stringByReplacingMatches(
-            in: result,
-            range: NSRange(result.startIndex..., in: result),
-            withTemplate: "<code><span class=\"color-chip\" style=\"background-color: $1;\"></span>$1</code>"
-        )
-
-        // rgb/rgba colors
-        let rgbPattern = try! NSRegularExpression(
-            pattern: "<code>(rgba?\\([^)]+\\))</code>",
-            options: []
-        )
-        result = rgbPattern.stringByReplacingMatches(
-            in: result,
-            range: NSRange(result.startIndex..., in: result),
-            withTemplate: "<code><span class=\"color-chip\" style=\"background-color: $1;\"></span>$1</code>"
-        )
-
-        // hsl/hsla colors
-        let hslPattern = try! NSRegularExpression(
-            pattern: "<code>(hsla?\\([^)]+\\))</code>",
-            options: []
-        )
-        result = hslPattern.stringByReplacingMatches(
-            in: result,
-            range: NSRange(result.startIndex..., in: result),
-            withTemplate: "<code><span class=\"color-chip\" style=\"background-color: $1;\"></span>$1</code>"
-        )
-
+        for regex in colorChipRegexes {
+            result = regex.stringByReplacingMatches(
+                in: result,
+                range: NSRange(result.startIndex..., in: result),
+                withTemplate: colorChipTemplate
+            )
+        }
         return result
     }
 }
