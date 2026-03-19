@@ -169,6 +169,7 @@ struct FileView: View {
 
     private func loadURL(_ url: URL) {
         self.fileURL = url
+        NSDocumentController.shared.noteNewRecentDocumentURL(url)
         _ = url.startAccessingSecurityScopedResource()
         defer { url.stopAccessingSecurityScopedResource() }
 
