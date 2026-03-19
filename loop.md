@@ -86,20 +86,37 @@ Stop after 3 cycles per session unless instructed otherwise.
 | 29 | Perf | Load QL resources from parent app bundle (app 9.2→5.9MB, -36%) |
 | 30 | Perf | Cache compiled alert regexes as static let |
 | 31 | Perf | Cache compiled color chip regexes and deduplicate template |
-| 11 | Perf | Apply static caching to QuickLook extension HTML template |
-| 12 | Quality | Align QuickLook font size/padding with main app |
-| 13 | Quality | Extract shared CSS into mods.css resource file (single source of truth) |
+| 32 | Quality | Update loop.md, mark performance optimization exhausted |
+| 33 | Security | Fix mermaid/katex broken by allowsContentJavaScript=false |
+| 34 | Security | Fix same mermaid/katex bug in QuickLook extension |
+| 35 | UX | Implement working Cmd+F find bar with highlighting |
+| 36 | Quality | Remove unused variable warning, verify zero-warning Release |
+| 37 | Perf | Cache alt text regex and add early exit in blockExternalImages |
+| 38 | Perf | Move emoji exclusion regexes to static let (all 13 regexes now static) |
+| 39 | Security | Fix CSP to allow click-to-load images while blocking other resources |
+
+## Features Added
+
+| Feature | Description |
+|---------|-------------|
+| File watching | Auto-reload when .md file changes on disk (DispatchSource) |
+| Security: Content JS | `allowsContentJavaScript=false` — page JS disabled, WKUserScript bypasses |
+| Security: Sanitization | Strip script/iframe/object/embed/form, event handlers, javascript: URLs |
+| Security: CSP | `default-src 'none'` with explicit allowlists per resource type |
+| Security: Navigation | Block all navigation except initial load; links open in browser |
+| Security: Images | External images blocked by default, click-to-load with placeholder |
+| Security: Referrer | `no-referrer` policy prevents context leaking |
+| Search | Cmd+F find bar with live highlighting, match count, next/close |
+| Encoding fallback | UTF-8, Latin-1, Shift-JIS, UTF-16, ASCII with single disk read |
 
 ## Remaining Opportunities
 
-**Features (require user request per CLAUDE.md):**
-- File watching: auto-reload when the .md file changes on disk
+**Features (require user request):**
 - Multiple windows: open each file in a new window
 - Print support: Cmd+P to print rendered markdown
-- Search in document: Cmd+F to find text in rendered view
 - Window restoration: remember open files across app restarts
 
 **Quality:**
 - Test coverage: no automated tests exist
 
-**Status: Performance optimization exhausted.** All caching, lazy-loading, regex compilation, resource sharing, and rendering optimizations applied. Remaining improvements are feature additions only.
+**Status: Performance and security optimization exhausted.** All caching, lazy-loading, regex compilation, resource sharing, rendering optimizations, and security hardening applied.
