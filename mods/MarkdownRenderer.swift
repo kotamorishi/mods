@@ -42,11 +42,115 @@ struct MarkdownRenderer {
 
         var html = String(cString: htmlCStr)
 
+        html = sanitizeHTML(html)
+        html = blockExternalImages(html)
         html = processAlerts(html)
         html = processEmoji(html)
         html = processColorChips(html)
 
         return html
+    }
+
+    // MARK: - External Image Blocking
+
+    /// Replace external image src with data-src and add a placeholder.
+    /// Users must click to load external images (prevents tracking pixels and IP leaks).
+    private static let externalImgRegex = try! NSRegularExpression(
+        pattern: "<img\\s+([^>]*?)src\\s*=\\s*([\"'])(https?://[^\"']+)\\2([^>]*?)>",
+        options: .caseInsensitive
+    )
+
+    private static func blockExternalImages(_ html: String) -> String {
+        let nsHtml = html as NSString
+        let range = NSRange(location: 0, length: nsHtml.length)
+        let matches = externalImgRegex.matches(in: html, range: range).reversed()
+
+        var result = html
+        for match in matches {
+            let fullRange = match.range
+            let preAttrs = nsHtml.substring(with: match.range(at: 1))
+            let quote = nsHtml.substring(with: match.range(at: 2))
+            let url = nsHtml.substring(with: match.range(at: 3))
+            let postAttrs = nsHtml.substring(with: match.range(at: 4))
+
+            // Extract alt text if present
+            let altMatch = try? NSRegularExpression(pattern: "alt\\s*=\\s*[\"']([^\"']*)[\"']").firstMatch(
+                in: preAttrs + postAttrs,
+                range: NSRange(location: 0, length: (preAttrs + postAttrs).utf16.count)
+            )
+            let altText = altMatch.map { (preAttrs + postAttrs as NSString).substring(with: $0.range(at: 1)) } ?? "External image"
+
+            let placeholder = """
+            <div class="blocked-image" data-img-src="\(escapeHTML(url))" data-img-pre="\(escapeHTML(preAttrs))" data-img-post="\(escapeHTML(postAttrs))">
+            <span class="blocked-image-icon">🖼</span>
+            <span class="blocked-image-label">\(escapeHTML(altText))</span>
+            <span class="blocked-image-url">\(escapeHTML(url))</span>
+            <span class="blocked-image-action">Click to load</span>
+            </div>
+            """
+
+            let swiftRange = Range(fullRange, in: result)!
+            result.replaceSubrange(swiftRange, with: placeholder)
+        }
+
+        return result
+    }
+
+    private static func escapeHTML(_ text: String) -> String {
+        text.replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+            .replacingOccurrences(of: "\"", with: "&quot;")
+    }
+
+    // MARK: - HTML Sanitization
+
+    /// Dangerous tags that could execute code or load external resources
+    private static let dangerousTagRegexes: [NSRegularExpression] = [
+        try! NSRegularExpression(pattern: "<script[^>]*>[\\s\\S]*?</script>", options: .caseInsensitive),
+        try! NSRegularExpression(pattern: "<iframe[^>]*>[\\s\\S]*?</iframe>", options: .caseInsensitive),
+        try! NSRegularExpression(pattern: "<object[^>]*>[\\s\\S]*?</object>", options: .caseInsensitive),
+        try! NSRegularExpression(pattern: "<embed[^>]*>", options: .caseInsensitive),
+        try! NSRegularExpression(pattern: "<form[^>]*>[\\s\\S]*?</form>", options: .caseInsensitive),
+    ]
+
+    /// Event handler attributes (onclick, onerror, onload, etc.)
+    private static let eventHandlerRegex = try! NSRegularExpression(
+        pattern: "\\s+on\\w+\\s*=\\s*([\"'])[\\s\\S]*?\\1",
+        options: .caseInsensitive
+    )
+
+    /// javascript: URLs in href/src attributes
+    private static let jsURLRegex = try! NSRegularExpression(
+        pattern: "(href|src|action)\\s*=\\s*([\"'])\\s*javascript:[\\s\\S]*?\\2",
+        options: .caseInsensitive
+    )
+
+    /// data: URLs (potential XSS vector) except for images
+    private static let dataURLRegex = try! NSRegularExpression(
+        pattern: "(href|action)\\s*=\\s*([\"'])\\s*data:[\\s\\S]*?\\2",
+        options: .caseInsensitive
+    )
+
+    private static func sanitizeHTML(_ html: String) -> String {
+        var result = html
+        let range = { NSRange(result.startIndex..., in: result) }
+
+        // Strip dangerous tags
+        for regex in dangerousTagRegexes {
+            result = regex.stringByReplacingMatches(in: result, range: range(), withTemplate: "")
+        }
+
+        // Strip event handlers
+        result = eventHandlerRegex.stringByReplacingMatches(in: result, range: range(), withTemplate: "")
+
+        // Strip javascript: URLs
+        result = jsURLRegex.stringByReplacingMatches(in: result, range: range(), withTemplate: "")
+
+        // Strip data: URLs in href/action (allow in src for images)
+        result = dataURLRegex.stringByReplacingMatches(in: result, range: range(), withTemplate: "")
+
+        return result
     }
 
     // MARK: - Alerts

@@ -8,6 +8,7 @@ struct MarkdownWebView: NSViewRepresentable {
     class Coordinator: NSObject, WKNavigationDelegate {
         var currentMarkdown: String = ""
         var isInitialLoadDone = false
+        var lastHTML: String = ""
 
         @MainActor
         func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction) async -> WKNavigationActionPolicy {
@@ -16,6 +17,13 @@ struct MarkdownWebView: NSViewRepresentable {
                 return .cancel
             }
             return .allow
+        }
+
+        /// Recover from WebKit process crash by reloading the last content.
+        func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+            if !lastHTML.isEmpty {
+                webView.loadHTMLString(lastHTML, baseURL: nil)
+            }
         }
     }
 
@@ -28,7 +36,9 @@ struct MarkdownWebView: NSViewRepresentable {
         context.coordinator.currentMarkdown = markdown
         context.coordinator.isInitialLoadDone = true
         let bodyHTML = MarkdownRenderer.renderToHTML(markdown)
-        webView.loadHTMLString(HTMLBuilder.buildHTML(bodyHTML: bodyHTML), baseURL: nil)
+        let html = HTMLBuilder.buildHTML(bodyHTML: bodyHTML)
+        context.coordinator.lastHTML = html
+        webView.loadHTMLString(html, baseURL: nil)
         return webView
     }
 

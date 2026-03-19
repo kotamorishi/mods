@@ -5,6 +5,7 @@ struct StartView: View {
     @State private var fileURL: URL?
     @State private var markdown: String = ""
     @State private var zoomLevel: Double = 1.0
+    @State private var fileWatcher: FileWatcher?
 
     var body: some View {
         Group {
@@ -44,6 +45,7 @@ struct StartView: View {
             }
         }
         .focusedSceneValue(\.openFileAction, openFile)
+        .focusedSceneValue(\.findAction, performFind)
         .onOpenURL { url in
             loadURL(url)
         }
@@ -58,6 +60,13 @@ struct StartView: View {
             }
             return true
         }
+        .onDisappear {
+            fileWatcher?.stop()
+        }
+    }
+
+    private func performFind() {
+        NSApp.sendAction(#selector(NSResponder.performTextFinderAction(_:)), to: nil, from: NSTextFinder.Action.showFindInterface)
     }
 
     private func openFile() {
@@ -74,7 +83,7 @@ struct StartView: View {
         }
     }
 
-    private static let maxFileSize: UInt64 = 10 * 1024 * 1024 // 10 MB
+    private static let maxFileSize: UInt64 = 10 * 1024 * 1024
 
     private func loadURL(_ url: URL) {
         self.fileURL = url
@@ -90,5 +99,57 @@ struct StartView: View {
         }
 
         self.markdown = HTMLBuilder.readFileWithFallback(url: url)
+        startWatching(url)
+    }
+
+    private func startWatching(_ url: URL) {
+        fileWatcher?.stop()
+        fileWatcher = FileWatcher(url: url) { [self] in
+            let newContent = HTMLBuilder.readFileWithFallback(url: url)
+            if newContent != self.markdown {
+                self.markdown = newContent
+            }
+        }
+        fileWatcher?.start()
+    }
+}
+
+/// Watches a file for modifications using GCD dispatch source.
+final class FileWatcher: @unchecked Sendable {
+    private var source: DispatchSourceFileSystemObject?
+    private let url: URL
+    private let onChange: @Sendable () -> Void
+
+    init(url: URL, onChange: @MainActor @escaping () -> Void) {
+        self.url = url
+        self.onChange = { DispatchQueue.main.async { onChange() } }
+    }
+
+    func start() {
+        let fd = open(url.path, O_EVTONLY)
+        guard fd >= 0 else { return }
+
+        let source = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: fd,
+            eventMask: [.write, .rename, .delete],
+            queue: DispatchQueue.global(qos: .utility)
+        )
+        source.setEventHandler { [onChange] in
+            onChange()
+        }
+        source.setCancelHandler {
+            close(fd)
+        }
+        source.resume()
+        self.source = source
+    }
+
+    func stop() {
+        source?.cancel()
+        source = nil
+    }
+
+    deinit {
+        stop()
     }
 }

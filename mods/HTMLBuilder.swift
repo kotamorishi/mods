@@ -46,9 +46,16 @@ enum HTMLBuilder {
     nonisolated(unsafe) private static var _sharedConfig: WKWebViewConfiguration?
 
     /// Shared configuration with highlight.js + post-processing injected via WKUserScript.
+    /// Security: JavaScript is disabled at the preference level; our WKUserScripts bypass this
+    /// restriction. This prevents any JS embedded in the markdown from executing, while still
+    /// allowing our own highlight.js and post-processing to run.
     @MainActor static func webViewConfiguration() -> WKWebViewConfiguration {
         if let config = _sharedConfig { return config }
         let config = WKWebViewConfiguration()
+
+        // Disable JS from page content — only WKUserScript JS can run
+        config.defaultWebpagePreferences.allowsContentJavaScript = false
+
         let controller = WKUserContentController()
 
         let highlightJS = cachedResource("highlight.min", type: "js")
@@ -157,6 +164,20 @@ enum HTMLBuilder {
                 });
             }
         }
+        // Blocked external images — click to load
+        document.querySelectorAll('.blocked-image').forEach(function(el) {
+            el.addEventListener('click', function() {
+                var src = el.getAttribute('data-img-src');
+                if (src) {
+                    var img = document.createElement('img');
+                    img.src = src;
+                    img.style.maxWidth = '100%';
+                    el.className = 'loaded-image';
+                    el.innerHTML = '';
+                    el.appendChild(img);
+                }
+            });
+        });
     };
     window.__modsPostProcess();
     """
