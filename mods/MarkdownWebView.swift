@@ -55,8 +55,6 @@ struct MarkdownWebView: NSViewRepresentable {
                 webView.evaluateJavaScript(pendingPostLoadJS)
                 pendingPostLoadJS = ""
             }
-            // Hide JS TOC sidebar in main app (SwiftUI sidebar is used instead)
-            webView.evaluateJavaScript("var t=document.getElementById('__mods-toc-sidebar'); if(t) t.style.display='none';")
         }
 
         func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
