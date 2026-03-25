@@ -1,9 +1,24 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// Handles file open events from Finder (double-click, "Open With").
+class AppDelegate: NSObject, NSApplicationDelegate {
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls {
+            NotificationCenter.default.post(name: .openFileFromFinder, object: url)
+        }
+    }
+}
+
+extension Notification.Name {
+    static let openFileFromFinder = Notification.Name("openFileFromFinder")
+}
+
 @main
 struct modsApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.dismissWindow) private var dismissWindow
     @FocusedValue(\.openFileAction) private var openFileAction
     @FocusedValue(\.findAction) private var findAction
     @FocusedValue(\.printAction) private var printAction
@@ -14,6 +29,12 @@ struct modsApp: App {
         // Welcome window (no file)
         WindowGroup(id: "welcome") {
             WelcomeView()
+                .onReceive(NotificationCenter.default.publisher(for: .openFileFromFinder)) { notification in
+                    if let url = notification.object as? URL {
+                        openWindow(value: url)
+                        dismissWindow(id: "welcome")
+                    }
+                }
         }
         // File viewer windows
         WindowGroup(for: URL.self) { $url in
