@@ -37,13 +37,13 @@ struct MarkdownRenderer {
         cmark_parser_feed(parser, markdown, bytes.count)
         guard let doc = cmark_parser_finish(parser) else {
             cmark_llist_free(cmark_get_default_mem_allocator(), extensions)
-            return "<p>Failed to parse markdown.</p>"
+            return "<pre>\(escapeHTML(markdown))</pre>"
         }
         defer { cmark_node_free(doc) }
 
         guard let htmlCStr = cmark_render_html(doc, Int32(options), extensions) else {
             cmark_llist_free(cmark_get_default_mem_allocator(), extensions)
-            return "<p>Failed to render HTML.</p>"
+            return "<pre>\(escapeHTML(markdown))</pre>"
         }
         defer { free(htmlCStr) }
         cmark_llist_free(cmark_get_default_mem_allocator(), extensions)

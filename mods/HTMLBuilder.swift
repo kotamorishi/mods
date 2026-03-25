@@ -405,6 +405,11 @@ enum HTMLBuilder {
                 return content
             }
         }
+        // Lossy fallback: decode as UTF-8 replacing invalid bytes with U+FFFD
+        let lossy = String(decoding: data, as: UTF8.self)
+        if !lossy.isEmpty {
+            return lossy
+        }
         return "# Unable to read file\n\nThis file could not be decoded as text."
     }
 }
