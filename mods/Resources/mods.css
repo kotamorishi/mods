@@ -50,7 +50,8 @@ li > p:last-child { margin-bottom: 0; }
 ul.contains-task-list { list-style-type: none; padding-left: 1.6em; }
 ul.contains-task-list li input[type="checkbox"] { margin-right: 0.5em; }
 
-table { border-spacing: 0; border-collapse: collapse; width: max-content; max-width: 100%; overflow: auto; margin-bottom: 16px; display: block; }
+.table-wrapper { overflow-x: auto; margin-bottom: 16px; }
+table { border-spacing: 0; border-collapse: collapse; width: auto; max-width: 100%; }
 table th { font-weight: 600; padding: 6px 13px; border: 1px solid #d0d7de; }
 table td { padding: 6px 13px; border: 1px solid #d0d7de; }
 table tr { background-color: #ffffff; border-top: 1px solid #d1d9e0; }

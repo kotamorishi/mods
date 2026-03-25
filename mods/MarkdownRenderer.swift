@@ -50,12 +50,25 @@ struct MarkdownRenderer {
 
         var html = String(cString: htmlCStr)
 
+        html = wrapTables(html)
         html = blockExternalImages(html)
         html = processAlerts(html)
         html = processEmoji(html)
         html = processColorChips(html)
 
         return html
+    }
+
+    // MARK: - Table Wrapping
+
+    /// Wrap <table> elements in a scrollable container so tables that fit
+    /// the viewport width are displayed normally (no scroll), while wide
+    /// tables get horizontal scrolling.
+    private static func wrapTables(_ html: String) -> String {
+        guard html.contains("<table") else { return html }
+        return html
+            .replacingOccurrences(of: "<table", with: "<div class=\"table-wrapper\"><table")
+            .replacingOccurrences(of: "</table>", with: "</table></div>")
     }
 
     // MARK: - External Image Blocking
