@@ -170,9 +170,45 @@ struct MarkdownWebView: NSViewRepresentable {
     private func updateContentViaJS(webView: WKWebView) {
         let bodyHTML = MarkdownRenderer.renderToHTML(markdown)
 
-        var js = "document.getElementById('content').innerHTML = \(HTMLBuilder.jsonEncode(bodyHTML));\n"
-        js += "window.scrollTo(0, 0);\n"
-        js += HTMLBuilder.conditionalJS(for: bodyHTML)
+        // Save the nearest visible heading before updating content,
+        // then restore scroll position to that heading after update.
+        let js = """
+        (function() {
+            // Find the heading closest to the current viewport top
+            var marker = null;
+            var headings = document.querySelectorAll('h1,h2,h3,h4,h5,h6');
+            for (var i = headings.length - 1; i >= 0; i--) {
+                if (headings[i].getBoundingClientRect().top <= 10) {
+                    marker = headings[i].textContent.trim();
+                    break;
+                }
+            }
+            // If no heading is above viewport, remember scroll ratio as fallback
+            var scrollRatio = document.documentElement.scrollHeight > window.innerHeight
+                ? window.scrollY / (document.documentElement.scrollHeight - window.innerHeight)
+                : 0;
+
+            // Update content
+            document.getElementById('content').innerHTML = \(HTMLBuilder.jsonEncode(bodyHTML));
+            \(HTMLBuilder.conditionalJS(for: bodyHTML))
+
+            // Restore position
+            if (marker) {
+                var newHeadings = document.querySelectorAll('h1,h2,h3,h4,h5,h6');
+                for (var h of newHeadings) {
+                    if (h.textContent.trim() === marker) {
+                        h.scrollIntoView({ block: 'start' });
+                        return;
+                    }
+                }
+            }
+            // Fallback: restore by scroll ratio
+            if (scrollRatio > 0) {
+                var newMax = document.documentElement.scrollHeight - window.innerHeight;
+                window.scrollTo(0, scrollRatio * newMax);
+            }
+        })();
+        """
 
         webView.evaluateJavaScript(js)
     }
