@@ -1,0 +1,15 @@
+{
+  "originHash" : "595af847e7a67009312b2fdf5857ade7ea5be671410cde8a741a3468d4c37de9",
+  "pins" : [
+    {
+      "identity" : "swift-cmark-gfm",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/stackotter/swift-cmark-gfm",
+      "state" : {
+        "branch" : "main",
+        "revision" : "396d17bd022e4c90429bea3991130c1d39a4c361"
+      }
+    }
+  ],
+  "version" : 3
+}

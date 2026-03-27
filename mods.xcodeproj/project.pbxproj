@@ -37,7 +37,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		A1000001 /* mods.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = mods.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A1000001 /* Mods.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Mods.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B1000002 /* mods QuickLook Extension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "mods QuickLook Extension.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -109,7 +109,7 @@
 		A100000F /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				A1000001 /* mods.app */,
+				A1000001 /* Mods.app */,
 				B1000002 /* mods QuickLook Extension.appex */,
 			);
 			name = Products;
@@ -140,7 +140,7 @@
 				87DE38ED2F6B40AD00A708CA /* CMarkGFM */,
 			);
 			productName = mods;
-			productReference = A1000001 /* mods.app */;
+			productReference = A1000001 /* Mods.app */;
 			productType = "com.apple.product-type.application";
 		};
 		B1000010 /* mods QuickLook Extension */ = {
@@ -377,7 +377,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.kotamorishita.mods;
 				PRODUCT_NAME = Mods;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -404,7 +404,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.kotamorishita.mods;
 				PRODUCT_NAME = Mods;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -428,12 +428,12 @@
 					"@executable_path/../Frameworks",
 					"@executable_path/../../../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.kotamorishita.mods.QuickLook;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 			};
 			name = Debug;
 		};
@@ -453,12 +453,12 @@
 					"@executable_path/../Frameworks",
 					"@executable_path/../../../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.kotamorishita.mods.QuickLook;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 			};
 			name = Release;
 		};

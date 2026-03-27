@@ -21,7 +21,7 @@ xcuserdata/
 # Swift Package Manager
 .build/
 Packages/
-Package.resolved
+# Package.resolved is tracked for reproducible builds
 
 # Code coverage
 *.gcno
