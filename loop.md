@@ -116,6 +116,23 @@ Go back to step 1. Stop after 3 cycles per session unless instructed otherwise.
 | 56 | Bug | Fix File > Open when no windows are open |
 | 57 | Quality | Audit Release bundle, commit project file |
 | 58 | Bug | Handle onOpenURL in FileView for when welcome window is closed |
+| 60 | Feature | Floating back-to-top button for long documents |
+| 61 | Feature | Custom CSS support via ~/.config/mods/custom.css |
+| 62 | Bug | Fix custom CSS path for sandboxed App Store builds |
+| 63 | Quality | Final Release build verification and loop.md update |
+| 64 | Quality | Clean up obsolete files, verify archive build |
+| 65 | UX | Show file directory path in status bar |
+| 66 | UX | Remove irrelevant context menu items from WebView |
+| 67 | UX | Add Cmd+Shift+T keyboard shortcut for TOC |
+| 68 | UX | Add Cmd+0 to reset zoom to 100% |
+| 69 | Quality | Extract duplicated NSOpenPanel into FilePickerHelper |
+| 70 | Quality | Fix FilePickerHelper MainActor warning, final Release check |
+| 71 | Security | Expand sanitization: block SVG, meta, base, link, CSS expressions |
+| 72 | Security | Thread-safe cmark-gfm extension registration (dispatch_once) |
+| 73 | Security | Fix sanitization bypass with unquoted attribute values |
+| 74 | Security | Fix JS injection via crafted markdown headings in TOC |
+| 75 | Security | Replace 7/8 nonisolated(unsafe) with thread-safe patterns |
+| 76 | Security | Audit dependency versions — all current, no known CVEs |
 
 ## Features
 
@@ -144,24 +161,6 @@ Go back to step 1. Stop after 3 cycles per session unless instructed otherwise.
 | HTML sanitization | Strip script/iframe/object/embed/form tags |
 | Navigation blocking | Links open in default browser, not in WebView |
 | Accessibility | ARIA labels on all JS-injected UI elements |
-
-| 60 | Feature | Floating back-to-top button for long documents |
-| 61 | Feature | Custom CSS support via ~/.config/mods/custom.css |
-| 62 | Bug | Fix custom CSS path for sandboxed App Store builds |
-| 63 | Quality | Final Release build verification and loop.md update |
-| 64 | Quality | Clean up obsolete files, verify archive build |
-| 65 | UX | Show file directory path in status bar |
-| 66 | UX | Remove irrelevant context menu items from WebView |
-| 67 | UX | Add Cmd+Shift+T keyboard shortcut for TOC |
-| 68 | UX | Add Cmd+0 to reset zoom to 100% |
-| 69 | Quality | Extract duplicated NSOpenPanel into FilePickerHelper |
-| 70 | Quality | Fix FilePickerHelper MainActor warning, final Release check |
-| 71 | Security | Expand sanitization: block SVG, meta, base, link, CSS expressions |
-| 72 | Security | Thread-safe cmark-gfm extension registration (dispatch_once) |
-| 73 | Security | Fix sanitization bypass with unquoted attribute values |
-| 74 | Security | Fix JS injection via crafted markdown headings in TOC |
-| 75 | Security | Replace 7/8 nonisolated(unsafe) with thread-safe patterns |
-| 76 | Security | Audit dependency versions — all current, no known CVEs |
 
 ## Backlog
 
