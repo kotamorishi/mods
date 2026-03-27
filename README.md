@@ -6,6 +6,12 @@ A fast, lightweight macOS native markdown viewer. View-only — no editing.
 
 [Download on the Mac App Store](https://apps.apple.com/app/mods-markdown-viewer/id6760838590)
 
+### Install with Homebrew
+
+```bash
+brew install --cask kotamorishi/mods/mods
+```
+
 Renders GitHub Flavored Markdown with the same engine GitHub uses ([cmark-gfm](https://github.com/github/cmark-gfm)).
 
 ## Features
