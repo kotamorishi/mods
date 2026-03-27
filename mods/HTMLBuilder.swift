@@ -35,7 +35,7 @@ enum HTMLBuilder {
 
     // MARK: - WKWebView Configuration
 
-    nonisolated(unsafe) private static var _sharedConfig: WKWebViewConfiguration?
+    @MainActor private static var _sharedConfig: WKWebViewConfiguration?
 
     /// Shared configuration with highlight.js + post-processing injected via WKUserScript.
     /// Security: JavaScript is disabled at the preference level; our WKUserScripts bypass this

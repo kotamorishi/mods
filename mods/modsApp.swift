@@ -156,7 +156,7 @@ enum URLValidator {
         if url.isFileURL {
             return viewableExtensions.contains(url.pathExtension.lowercased())
         }
-        return true
+        return false
     }
 }
 

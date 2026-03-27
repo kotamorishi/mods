@@ -158,11 +158,25 @@ struct MarkdownWebView: NSViewRepresentable {
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
         webView.createPDF { result in
-            switch result {
-            case .success(let data):
-                try? data.write(to: url)
-            case .failure:
-                break
+            DispatchQueue.main.async {
+                switch result {
+                case .success(let data):
+                    do {
+                        try data.write(to: url)
+                    } catch {
+                        let alert = NSAlert()
+                        alert.messageText = "Export Failed"
+                        alert.informativeText = "Could not save PDF: \(error.localizedDescription)"
+                        alert.alertStyle = .warning
+                        alert.runModal()
+                    }
+                case .failure(let error):
+                    let alert = NSAlert()
+                    alert.messageText = "Export Failed"
+                    alert.informativeText = "Could not create PDF: \(error.localizedDescription)"
+                    alert.alertStyle = .warning
+                    alert.runModal()
+                }
             }
         }
     }

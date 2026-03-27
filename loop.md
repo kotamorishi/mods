@@ -133,6 +133,9 @@ Go back to step 1. Stop after 3 cycles per session unless instructed otherwise.
 | 74 | Security | Fix JS injection via crafted markdown headings in TOC |
 | 75 | Security | Replace 7/8 nonisolated(unsafe) with thread-safe patterns |
 | 76 | Security | Audit dependency versions — all current, no known CVEs |
+| 77 | Security | URLValidator.isSafe() rejects non-file/non-mods URLs instead of accepting |
+| 78 | UX | Show error alert on PDF export failure instead of silent fail |
+| 79 | Security | Replace nonisolated(unsafe) _sharedConfig with @MainActor |
 
 ## Features
 
@@ -182,6 +185,6 @@ Go back to step 1. Stop after 3 cycles per session unless instructed otherwise.
 - **App size**: 6.2 MB (Release)
 - **Source**: ~1350 lines Swift, 6 files + 1 QL extension
 - **Build warnings**: 0
-- **Improvement cycles**: 76
+- **Improvement cycles**: 79
 - **Features**: 26
 - **Security layers**: 9 (sanitization, CSP, content JS, navigation, images, referrer, thread safety, context menu, input validation)
