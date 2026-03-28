@@ -480,6 +480,16 @@ struct TOCSidebar: View {
     let headings: [(level: Int, text: String)]
     let onSelect: (String) -> Void
 
+    private static let dotSizes: [CGFloat] = [8, 7, 6, 5, 4, 4]
+    private static let dotColors: [Color] = [
+        .primary,
+        .primary.opacity(0.8),
+        .secondary,
+        .secondary.opacity(0.8),
+        .secondary.opacity(0.5),
+        .secondary.opacity(0.5),
+    ]
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
@@ -498,17 +508,23 @@ struct TOCSidebar: View {
                         Button {
                             onSelect(heading.text)
                         } label: {
-                            Text(heading.text)
-                                .font(.system(size: heading.level <= 2 ? 12 : 11,
-                                              weight: heading.level <= 1 ? .semibold : .regular))
-                                .foregroundStyle(heading.level <= 2 ? .primary : .secondary)
-                                .lineLimit(1)
-                                .truncationMode(.tail)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.leading, CGFloat((heading.level - 1) * 10))
-                                .padding(.vertical, 3)
-                                .padding(.horizontal, 12)
-                                .contentShape(Rectangle())
+                            HStack(spacing: 6) {
+                                Circle()
+                                    .fill(Self.dotColors[min(heading.level - 1, 5)])
+                                    .frame(width: Self.dotSizes[min(heading.level - 1, 5)],
+                                           height: Self.dotSizes[min(heading.level - 1, 5)])
+                                Text(heading.text)
+                                    .font(.system(size: heading.level <= 2 ? 12 : 11,
+                                                  weight: heading.level <= 1 ? .semibold : .regular))
+                                    .foregroundStyle(heading.level <= 2 ? .primary : .secondary)
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.leading, CGFloat((heading.level - 1) * 12))
+                            .padding(.vertical, 3)
+                            .padding(.horizontal, 12)
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                     }
