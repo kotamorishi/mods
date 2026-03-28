@@ -25,9 +25,16 @@ struct MarkdownWebView: NSViewRepresentable {
     let exportPDFTrigger: Int
     let tocScrollTarget: String
 
-    /// WKWebView subclass that filters context menu items and handles file drops.
+    /// WKWebView subclass that intercepts drag registration and handles file drops.
     class ModsWebView: WKWebView {
-        private var didSetupDrop = false
+        // Override registerForDraggedTypes to ensure file URL drops always work.
+        // WKWebView's internal subviews call this to register their own types;
+        // by overriding, we control what actually gets registered.
+        override func registerForDraggedTypes(_ newTypes: [NSPasteboard.PasteboardType]) {
+            var types = Set(newTypes)
+            types.insert(.fileURL)
+            super.registerForDraggedTypes(Array(types))
+        }
 
         override func willOpenMenu(_ menu: NSMenu, with event: NSEvent) {
             let removeSelectors: Set<String> = [
@@ -43,39 +50,30 @@ struct MarkdownWebView: NSViewRepresentable {
             super.willOpenMenu(menu, with: event)
         }
 
-        override func viewDidMoveToWindow() {
-            super.viewDidMoveToWindow()
-            guard !didSetupDrop, window != nil else { return }
-            didSetupDrop = true
-            // Delay to let WKWebView create its internal subviews first
-            DispatchQueue.main.async { [weak self] in
-                self?.setupDropHandling()
-            }
-        }
-
-        private func setupDropHandling() {
-            func unregisterAll(_ view: NSView) {
-                for sub in view.subviews {
-                    sub.unregisterDraggedTypes()
-                    unregisterAll(sub)
-                }
-            }
-            unregisterAll(self)
-            registerForDraggedTypes([.fileURL])
-        }
-
         override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
-            sender.draggingPasteboard.canReadObject(forClasses: [NSURL.self], options: nil) ? .copy : []
+            if sender.draggingPasteboard.canReadObject(forClasses: [NSURL.self], options: nil) {
+                return .copy
+            }
+            return super.draggingEntered(sender)
+        }
+
+        override func draggingUpdated(_ sender: any NSDraggingInfo) -> NSDragOperation {
+            if sender.draggingPasteboard.canReadObject(forClasses: [NSURL.self], options: nil) {
+                return .copy
+            }
+            return super.draggingUpdated(sender)
         }
 
         override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
             guard let urls = sender.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL] else {
-                return false
+                return super.performDragOperation(sender)
             }
-            for url in urls where URLValidator.isSafe(url) {
+            let valid = urls.filter { URLValidator.isSafe($0) }
+            guard !valid.isEmpty else { return super.performDragOperation(sender) }
+            for url in valid {
                 NotificationCenter.default.post(name: .openFileFromFinder, object: url)
             }
-            return !urls.isEmpty
+            return true
         }
     }
 
