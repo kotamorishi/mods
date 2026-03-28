@@ -177,6 +177,7 @@ struct FileView: View {
     @State private var isSearching: Bool = false
     @State private var search = SearchState()
     @State private var activeSearchTerms: [(term: String, slot: Int, count: Int)] = []
+    @State private var searchStack: [[String]] = []
     @State private var printTrigger: Int = 0
     @State private var exportPDFTrigger: Int = 0
     @State private var tocScrollTarget: String = ""
@@ -214,15 +215,22 @@ struct FileView: View {
                     }
                     Divider()
                 }
-                MarkdownWebView(markdown: markdown, zoomLevel: zoomLevel, search: search, activeSearchTerms: $activeSearchTerms, printTrigger: printTrigger, exportPDFTrigger: exportPDFTrigger, tocScrollTarget: tocScrollTarget)
+                MarkdownWebView(markdown: markdown, zoomLevel: zoomLevel, search: search, activeSearchTerms: $activeSearchTerms, searchStack: $searchStack, printTrigger: printTrigger, exportPDFTrigger: exportPDFTrigger, tocScrollTarget: tocScrollTarget)
             }
-            if !activeSearchTerms.isEmpty {
-                SearchTermsBar(terms: activeSearchTerms, onTap: { term in
+            if !activeSearchTerms.isEmpty || !searchStack.isEmpty {
+                SearchTermsBar(terms: activeSearchTerms, stack: searchStack, onTap: { term in
                     search.scrollToNextTerm = term
                     search.scrollToNextTrigger += 1
                 }, onRemove: { term in
                     search.removeTerm = term
                     search.removeTrigger += 1
+                }, onPush: {
+                    search.pushTrigger += 1
+                }, onPop: {
+                    search.popTrigger += 1
+                }, onRestore: { index in
+                    search.restoreIndex = index
+                    search.restoreTrigger += 1
                 }, onClearAll: {
                     search.clearTrigger += 1
                 })
@@ -406,7 +414,7 @@ extension FocusedValues {
     }
 }
 
-/// Pill-style bar showing active search highlights with dismiss buttons.
+/// Pill-style bar showing active search highlights with push/pop stack.
 struct SearchTermsBar: View {
     private static let slotColors: [Color] = [
         Color(red: 1.0, green: 0.83, blue: 0.24),
@@ -417,50 +425,115 @@ struct SearchTermsBar: View {
     ]
 
     let terms: [(term: String, slot: Int, count: Int)]
+    let stack: [[String]]
     let onTap: (String) -> Void
     let onRemove: (String) -> Void
+    let onPush: () -> Void
+    let onPop: () -> Void
+    let onRestore: (Int) -> Void
     let onClearAll: () -> Void
 
     var body: some View {
-        HStack(spacing: 6) {
-            ForEach(Array(terms.enumerated()), id: \.element.term) { _, entry in
-                HStack(spacing: 4) {
-                    Circle()
-                        .fill(Self.slotColors[entry.slot % Self.slotColors.count])
-                        .frame(width: 8, height: 8)
-                    Text(entry.term)
-                        .lineLimit(1)
-                    Text("\(entry.count)")
-                        .foregroundStyle(.secondary)
+        VStack(spacing: 0) {
+            if !terms.isEmpty {
+                HStack(spacing: 6) {
+                    ForEach(Array(terms.enumerated()), id: \.element.term) { _, entry in
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(Self.slotColors[entry.slot % Self.slotColors.count])
+                                .frame(width: 8, height: 8)
+                            Text(entry.term)
+                                .lineLimit(1)
+                            Text("\(entry.count)")
+                                .foregroundStyle(.secondary)
+                            Button {
+                                onRemove(entry.term)
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 9, weight: .semibold))
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.secondary)
+                        }
+                        .font(.system(size: 11))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(.quaternary, in: Capsule())
+                        .contentShape(Capsule())
+                        .onTapGesture {
+                            onTap(entry.term)
+                        }
+                        .transition(.scale.combined(with: .opacity))
+                    }
+                    Spacer()
                     Button {
-                        onRemove(entry.term)
+                        onPush()
                     } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 9, weight: .semibold))
+                        Image(systemName: "square.and.arrow.down")
+                            .font(.system(size: 11))
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(.secondary)
+                    .help("Save to stack")
+                    if !stack.isEmpty {
+                        Button {
+                            onPop()
+                        } label: {
+                            Image(systemName: "square.and.arrow.up")
+                                .font(.system(size: 11))
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                        .help("Restore from stack")
+                    }
+                    Button("Clear All") {
+                        onClearAll()
+                    }
+                    .font(.system(size: 11))
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
                 }
-                .font(.system(size: 11))
-                .padding(.horizontal, 8)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 4)
+            }
+            if !stack.isEmpty {
+                Divider()
+                HStack(spacing: 6) {
+                    Image(systemName: "archivebox")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                    ForEach(Array(stack.enumerated()), id: \.offset) { index, entry in
+                        Button {
+                            onRestore(index)
+                        } label: {
+                            Text(entry.joined(separator: ", "))
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                        }
+                        .font(.system(size: 10))
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(.quaternary, in: Capsule())
+                    }
+                    Spacer()
+                    if terms.isEmpty && !stack.isEmpty {
+                        Button {
+                            onPop()
+                        } label: {
+                            Image(systemName: "square.and.arrow.up")
+                                .font(.system(size: 11))
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                        .help("Restore from stack")
+                    }
+                }
+                .padding(.horizontal, 12)
                 .padding(.vertical, 3)
-                .background(.quaternary, in: Capsule())
-                .contentShape(Capsule())
-                .onTapGesture {
-                    onTap(entry.term)
-                }
-                .transition(.scale.combined(with: .opacity))
             }
-            Spacer()
-            Button("Clear All") {
-                onClearAll()
-            }
-            .font(.system(size: 11))
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 4)
         .background(.bar)
     }
 }

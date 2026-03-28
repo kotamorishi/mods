@@ -275,8 +275,11 @@ enum HTMLBuilder {
     (function() {
         var MAX_SLOTS = 5;
 
+        var MAX_STACK = 10;
+
         window.__modsSearch = {
             terms: [],
+            stack: [],
 
             _highlightTerm: function(entry) {
                 var content = document.getElementById('content');
@@ -387,6 +390,50 @@ enum HTMLBuilder {
                 var target = marks[entry.navIndex];
                 target.classList.add('__mods-hl-current');
                 target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            },
+
+            push: function() {
+                if (this.terms.length === 0) return JSON.stringify({ terms: this.terms, stack: this.stack });
+                var saved = this.terms.map(function(e) { return e.term; });
+                if (this.stack.length >= MAX_STACK) this.stack.shift();
+                this.stack.push(saved);
+                this.terms = [];
+                this._clearMarks();
+                return JSON.stringify({ terms: this.terms, stack: this.stack });
+            },
+
+            pop: function() {
+                if (this.stack.length === 0) return JSON.stringify({ terms: this.terms, stack: this.stack });
+                var saved = this.stack.pop();
+                this.terms = [];
+                this._clearMarks();
+                for (var i = 0; i < saved.length; i++) {
+                    var slot = this._nextSlot();
+                    var entry = { term: saved[i], slot: slot, count: 0 };
+                    this.terms.push(entry);
+                }
+                this._rebuildAll();
+                return JSON.stringify({ terms: this.terms, stack: this.stack });
+            },
+
+            restore: function(index) {
+                if (index < 0 || index >= this.stack.length) return JSON.stringify({ terms: this.terms, stack: this.stack });
+                var saved = this.stack.splice(index, 1)[0];
+                // Push current terms to stack if any
+                if (this.terms.length > 0) {
+                    var current = this.terms.map(function(e) { return e.term; });
+                    if (this.stack.length >= MAX_STACK) this.stack.shift();
+                    this.stack.push(current);
+                }
+                this.terms = [];
+                this._clearMarks();
+                for (var i = 0; i < saved.length; i++) {
+                    var slot = this._nextSlot();
+                    var entry = { term: saved[i], slot: slot, count: 0 };
+                    this.terms.push(entry);
+                }
+                this._rebuildAll();
+                return JSON.stringify({ terms: this.terms, stack: this.stack });
             },
 
             getTerms: function() {

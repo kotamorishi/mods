@@ -9,6 +9,10 @@ struct SearchState {
     var clearTrigger: Int = 0
     var scrollToNextTerm: String = ""
     var scrollToNextTrigger: Int = 0
+    var pushTrigger: Int = 0
+    var popTrigger: Int = 0
+    var restoreIndex: Int = 0
+    var restoreTrigger: Int = 0
 }
 
 struct MarkdownWebView: NSViewRepresentable {
@@ -16,6 +20,7 @@ struct MarkdownWebView: NSViewRepresentable {
     let zoomLevel: Double
     let search: SearchState
     @Binding var activeSearchTerms: [(term: String, slot: Int, count: Int)]
+    @Binding var searchStack: [[String]]
     let printTrigger: Int
     let exportPDFTrigger: Int
     let tocScrollTarget: String
@@ -137,6 +142,18 @@ struct MarkdownWebView: NSViewRepresentable {
                 let encoded = HTMLBuilder.jsonEncode(search.scrollToNextTerm)
                 webView.evaluateJavaScript("window.__modsSearch.scrollToNext(\(encoded))")
             }
+            if context.coordinator.lastSearch.pushTrigger != search.pushTrigger {
+                context.coordinator.lastSearch.pushTrigger = search.pushTrigger
+                evaluateStackJS("window.__modsSearch.push()", webView: webView)
+            }
+            if context.coordinator.lastSearch.popTrigger != search.popTrigger {
+                context.coordinator.lastSearch.popTrigger = search.popTrigger
+                evaluateStackJS("window.__modsSearch.pop()", webView: webView)
+            }
+            if context.coordinator.lastSearch.restoreTrigger != search.restoreTrigger {
+                context.coordinator.lastSearch.restoreTrigger = search.restoreTrigger
+                evaluateStackJS("window.__modsSearch.restore(\(search.restoreIndex))", webView: webView)
+            }
         }
 
         // Print
@@ -208,6 +225,23 @@ struct MarkdownWebView: NSViewRepresentable {
     private func evaluateSearchJS(_ js: String, webView: WKWebView) {
         webView.evaluateJavaScript(js) { result, _ in
             if let json = result as? String { self.updateActiveTerms(from: json) }
+        }
+    }
+
+    private func evaluateStackJS(_ js: String, webView: WKWebView) {
+        webView.evaluateJavaScript(js) { result, _ in
+            guard let json = result as? String,
+                  let data = json.data(using: .utf8),
+                  let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
+            if let termsJSON = try? JSONSerialization.data(withJSONObject: obj["terms"] ?? []),
+               let termsStr = String(data: termsJSON, encoding: .utf8) {
+                self.updateActiveTerms(from: termsStr)
+            }
+            if let stackArray = obj["stack"] as? [[String]] {
+                DispatchQueue.main.async {
+                    withAnimation(.easeInOut(duration: 0.2)) { self.searchStack = stackArray }
+                }
+            }
         }
     }
 
