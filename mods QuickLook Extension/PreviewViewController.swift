@@ -50,7 +50,7 @@ class PreviewViewController: NSViewController, QLPreviewingController, WKNavigat
             let sizeMB = String(format: "%.1f", Double(size) / 1_048_576)
             let bodyHTML = MarkdownRenderer.renderToHTML("# File too large\n\nThis file is \(sizeMB) MB. Maximum supported size is 10 MB.")
             let html = HTMLBuilder.buildHTML(bodyHTML: bodyHTML)
-            DispatchQueue.main.async {
+            DispatchQueue.main.async { [self] in
                 webView.loadHTMLString(html, baseURL: nil)
             }
             handler(nil)
@@ -60,7 +60,7 @@ class PreviewViewController: NSViewController, QLPreviewingController, WKNavigat
         let bodyHTML = MarkdownRenderer.renderToHTML(markdown)
         let postLoadJS = HTMLBuilder.conditionalJS(for: bodyHTML)
         let html = HTMLBuilder.buildHTML(bodyHTML: bodyHTML)
-        DispatchQueue.main.async {
+        DispatchQueue.main.async { [self] in
             pendingPostLoadJS = postLoadJS
             webView.loadHTMLString(html, baseURL: nil)
         }
