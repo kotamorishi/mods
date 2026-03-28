@@ -317,6 +317,7 @@ enum HTMLBuilder {
             _rebuildAll: function() {
                 this._clearMarks();
                 for (var i = 0; i < this.terms.length; i++) {
+                    this.terms[i].navIndex = undefined;
                     this._highlightTerm(this.terms[i]);
                 }
             },
@@ -366,6 +367,26 @@ enum HTMLBuilder {
                 this.terms = [];
                 this._clearMarks();
                 return '[]';
+            },
+
+            scrollToNext: function(term) {
+                var lower = term.toLowerCase();
+                var entry = null;
+                for (var i = 0; i < this.terms.length; i++) {
+                    if (this.terms[i].term.toLowerCase() === lower) { entry = this.terms[i]; break; }
+                }
+                if (!entry) return;
+                var marks = document.querySelectorAll('.__mods-hl-' + entry.slot);
+                if (marks.length === 0) return;
+                // Remove previous current indicator
+                var prev = document.querySelector('.__mods-hl-current');
+                if (prev) prev.classList.remove('__mods-hl-current');
+                // Advance index (wrap around)
+                if (entry.navIndex === undefined) entry.navIndex = 0;
+                else entry.navIndex = (entry.navIndex + 1) % marks.length;
+                var target = marks[entry.navIndex];
+                target.classList.add('__mods-hl-current');
+                target.scrollIntoView({ behavior: 'smooth', block: 'center' });
             },
 
             getTerms: function() {

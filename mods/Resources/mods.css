@@ -166,7 +166,9 @@ pre:hover .__mods-copy-btn { opacity: 1; }
 
 /* Multi-highlight search */
 @keyframes __mods-hl-fadein { from { opacity: 0; } to { opacity: 1; } }
-.__mods-highlight { border-radius: 2px; color: inherit; animation: __mods-hl-fadein 0.2s ease-in; }
+.__mods-highlight { border-radius: 2px; color: inherit; animation: __mods-hl-fadein 0.2s ease-in; transition: outline 0.15s, box-shadow 0.15s; }
+.__mods-hl-current { outline: 2px solid #0969da; box-shadow: 0 0 0 2px rgba(9, 105, 218, 0.3); }
+@media (prefers-color-scheme: dark) { .__mods-hl-current { outline-color: #58a6ff; box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.3); } }
 .__mods-hl-0 { background: #ffd33d80; }
 .__mods-hl-1 { background: #58a6ff80; }
 .__mods-hl-2 { background: #3fb95080; }

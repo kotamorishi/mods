@@ -217,7 +217,10 @@ struct FileView: View {
                 MarkdownWebView(markdown: markdown, zoomLevel: zoomLevel, search: search, activeSearchTerms: $activeSearchTerms, printTrigger: printTrigger, exportPDFTrigger: exportPDFTrigger, tocScrollTarget: tocScrollTarget)
             }
             if !activeSearchTerms.isEmpty {
-                SearchTermsBar(terms: activeSearchTerms, onRemove: { term in
+                SearchTermsBar(terms: activeSearchTerms, onTap: { term in
+                    search.scrollToNextTerm = term
+                    search.scrollToNextTrigger += 1
+                }, onRemove: { term in
                     search.removeTerm = term
                     search.removeTrigger += 1
                 }, onClearAll: {
@@ -424,6 +427,7 @@ struct SearchTermsBar: View {
     ]
 
     let terms: [(term: String, slot: Int, count: Int)]
+    let onTap: (String) -> Void
     let onRemove: (String) -> Void
     let onClearAll: () -> Void
 
@@ -451,6 +455,10 @@ struct SearchTermsBar: View {
                 .padding(.horizontal, 8)
                 .padding(.vertical, 3)
                 .background(.quaternary, in: Capsule())
+                .contentShape(Capsule())
+                .onTapGesture {
+                    onTap(entry.term)
+                }
                 .transition(.scale.combined(with: .opacity))
             }
             Spacer()

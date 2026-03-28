@@ -7,6 +7,8 @@ struct SearchState {
     var removeTerm: String = ""
     var removeTrigger: Int = 0
     var clearTrigger: Int = 0
+    var scrollToNextTerm: String = ""
+    var scrollToNextTrigger: Int = 0
 }
 
 struct MarkdownWebView: NSViewRepresentable {
@@ -129,6 +131,11 @@ struct MarkdownWebView: NSViewRepresentable {
             if context.coordinator.lastSearch.clearTrigger != search.clearTrigger {
                 context.coordinator.lastSearch.clearTrigger = search.clearTrigger
                 evaluateSearchJS("window.__modsSearch.clearAll()", webView: webView)
+            }
+            if context.coordinator.lastSearch.scrollToNextTrigger != search.scrollToNextTrigger {
+                context.coordinator.lastSearch.scrollToNextTrigger = search.scrollToNextTrigger
+                let encoded = HTMLBuilder.jsonEncode(search.scrollToNextTerm)
+                webView.evaluateJavaScript("window.__modsSearch.scrollToNext(\(encoded))")
             }
         }
 
