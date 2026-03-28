@@ -25,7 +25,7 @@ struct MarkdownWebView: NSViewRepresentable {
     let exportPDFTrigger: Int
     let tocScrollTarget: String
 
-    /// WKWebView subclass that filters irrelevant context menu items.
+    /// WKWebView subclass that filters irrelevant context menu items and disables drop.
     class ModsWebView: WKWebView {
         override func willOpenMenu(_ menu: NSMenu, with event: NSEvent) {
             let removeSelectors: Set<String> = [
@@ -40,6 +40,10 @@ struct MarkdownWebView: NSViewRepresentable {
             }
             super.willOpenMenu(menu, with: event)
         }
+
+        // Disable WKWebView's built-in drop handling so SwiftUI .onDrop receives it.
+        override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation { [] }
+        override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool { false }
     }
 
     class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
