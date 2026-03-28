@@ -165,7 +165,8 @@ pre:hover .__mods-copy-btn { opacity: 1; }
 .loaded-image img { max-width: 100%; }
 
 /* Multi-highlight search */
-.__mods-highlight { border-radius: 2px; color: inherit; }
+@keyframes __mods-hl-fadein { from { opacity: 0; } to { opacity: 1; } }
+.__mods-highlight { border-radius: 2px; color: inherit; animation: __mods-hl-fadein 0.2s ease-in; }
 .__mods-hl-0 { background: #ffd33d80; }
 .__mods-hl-1 { background: #58a6ff80; }
 .__mods-hl-2 { background: #3fb95080; }
