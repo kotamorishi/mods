@@ -84,16 +84,7 @@ struct MarkdownWebView: NSViewRepresentable {
                   let body = message.body as? [String: String],
                   let id = body["id"],
                   let src = body["src"] else { return }
-            let alert = NSAlert()
-            alert.messageText = "Load External Image"
-            alert.informativeText = src
-            alert.addButton(withTitle: "Load")
-            alert.addButton(withTitle: "Cancel")
-            alert.alertStyle = .informational
-            guard alert.runModal() == .alertFirstButtonReturn else { return }
-            let jsId = HTMLBuilder.jsonEncode(id)
-            let jsSrc = HTMLBuilder.jsonEncode(src)
-            message.webView?.evaluateJavaScript("window.__modsLoadImage(\(jsId), \(jsSrc))")
+            TrustedImageDomains.handleLoadImage(id: id, src: src, webView: message.webView)
         }
 
     }

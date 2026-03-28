@@ -549,3 +549,54 @@ enum HTMLBuilder {
         return "# Unable to read file\n\nThis file could not be decoded as text."
     }
 }
+
+/// Manages trusted image domains and handles external image load confirmation.
+enum TrustedImageDomains {
+    private static let key = "trustedImageDomains"
+
+    static func trustedDomains() -> Set<String> {
+        Set(UserDefaults.standard.stringArray(forKey: key) ?? [])
+    }
+
+    static func addDomain(_ domain: String) {
+        var domains = trustedDomains()
+        domains.insert(domain)
+        UserDefaults.standard.set(Array(domains), forKey: key)
+    }
+
+    private static func domain(from urlString: String) -> String? {
+        URL(string: urlString)?.host
+    }
+
+    @MainActor
+    static func handleLoadImage(id: String, src: String, webView: WKWebView?) {
+        guard let webView else { return }
+        let jsId = HTMLBuilder.jsonEncode(id)
+        let jsSrc = HTMLBuilder.jsonEncode(src)
+        let loadJS = "window.__modsLoadImage(\(jsId), \(jsSrc))"
+
+        // Auto-load if domain is trusted
+        if let host = domain(from: src), trustedDomains().contains(host) {
+            webView.evaluateJavaScript(loadJS)
+            return
+        }
+
+        let alert = NSAlert()
+        alert.messageText = "Load External Image"
+        alert.informativeText = src
+        alert.addButton(withTitle: "Load")
+        alert.addButton(withTitle: "Cancel")
+        alert.alertStyle = .informational
+
+        let checkbox = NSButton(checkboxWithTitle: "Always trust images from \(domain(from: src) ?? "this domain")", target: nil, action: nil)
+        alert.accessoryView = checkbox
+
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+        if checkbox.state == .on, let host = domain(from: src) {
+            addDomain(host)
+        }
+
+        webView.evaluateJavaScript(loadJS)
+    }
+}

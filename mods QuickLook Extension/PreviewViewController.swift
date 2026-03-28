@@ -20,16 +20,7 @@ class PreviewViewController: NSViewController, QLPreviewingController, WKNavigat
               let body = message.body as? [String: String],
               let id = body["id"],
               let src = body["src"] else { return }
-        let alert = NSAlert()
-        alert.messageText = "Load External Image"
-        alert.informativeText = src
-        alert.addButton(withTitle: "Load")
-        alert.addButton(withTitle: "Cancel")
-        alert.alertStyle = .informational
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
-        let jsId = HTMLBuilder.jsonEncode(id)
-        let jsSrc = HTMLBuilder.jsonEncode(src)
-        webView.evaluateJavaScript("window.__modsLoadImage(\(jsId), \(jsSrc))")
+        TrustedImageDomains.handleLoadImage(id: id, src: src, webView: webView)
     }
 
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction) async -> WKNavigationActionPolicy {
