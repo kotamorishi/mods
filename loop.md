@@ -166,6 +166,19 @@ Go back to step 1. Continue until the feature is complete.
 | 77 | Security | URLValidator.isSafe() rejects non-file/non-mods URLs instead of accepting |
 | 78 | UX | Show error alert on PDF export failure instead of silent fail |
 | 79 | Security | Replace nonisolated(unsafe) _sharedConfig with @MainActor |
+| 80 | Feature | Refactor search JS into SearchManager class with multi-term API |
+| 81 | Feature | Multi-term search with pill UI, Enter-to-add, per-term dismiss |
+| 82 | Bug | Fix search remove trigger to use Int counter pattern |
+| 83 | Feature | Restore search highlights after file auto-reload |
+| 84 | Quality | Move highlight colors to CSS with dark mode support |
+| 85 | Review | Remove dead code, fix highlight nesting CSS selector |
+| 86 | UX | Clear search field after adding highlight term |
+| 87 | Quality | Verify QuickLook Extension build compatibility |
+| 88 | UX | Add animations to search pills and highlight bar |
+| 89 | UX | Add fade-in animation to WebView highlights |
+| 90 | Review | Fix race condition, dead code, validation, dark mode contrast |
+| 91 | UX | Add Cmd+Shift+F shortcut to clear all highlights |
+| 92 | Quality | Add aria-label to highlight marks for accessibility |
 
 ## Features
 
@@ -178,7 +191,7 @@ Go back to step 1. Continue until the feature is complete.
 | Emoji shortcodes | 1913 GitHub emoji via gemoji data |
 | Color chips | Visual swatches for hex/rgb/hsl in inline code |
 | Multiple windows | Each file opens in its own window |
-| Find (Cmd+F) | Find bar with live highlighting, match count, next/close |
+| Multi-highlight search | Up to 5 persistent color-coded highlights with pill UI (Cmd+F, Enter to add, Cmd+Shift+F to clear) |
 | Print (Cmd+P) | Print via system print dialog |
 | Export PDF (Cmd+Shift+E) | Save rendered markdown as PDF |
 | Table of Contents | Toolbar popover with heading outline navigation |
@@ -215,6 +228,6 @@ Go back to step 1. Continue until the feature is complete.
 - **App size**: 6.2 MB (Release)
 - **Source**: ~1350 lines Swift, 6 files + 1 QL extension
 - **Build warnings**: 0
-- **Improvement cycles**: 79
-- **Features**: 26
+- **Improvement cycles**: 92
+- **Features**: 27
 - **Security layers**: 9 (sanitization, CSP, content JS, navigation, images, referrer, thread safety, context menu, input validation)
