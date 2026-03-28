@@ -482,12 +482,12 @@ struct TOCSidebar: View {
 
     private static let dotSizes: [CGFloat] = [8, 7, 6, 5, 4, 4]
     private static let dotColors: [Color] = [
-        .primary,
-        .primary.opacity(0.8),
-        .secondary,
-        .secondary.opacity(0.8),
-        .secondary.opacity(0.5),
-        .secondary.opacity(0.5),
+        Color(red: 0.85, green: 0.25, blue: 0.25),  // red
+        Color(red: 0.20, green: 0.55, blue: 0.95),  // blue
+        Color(red: 0.25, green: 0.72, blue: 0.35),  // green
+        Color(red: 0.93, green: 0.60, blue: 0.15),  // orange
+        Color(red: 0.62, green: 0.42, blue: 0.90),  // purple
+        Color(red: 0.15, green: 0.72, blue: 0.72),  // teal
     ]
 
     var body: some View {
