@@ -42,7 +42,7 @@ struct MarkdownWebView: NSViewRepresentable {
         }
     }
 
-    class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
+    class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
         var currentMarkdown: String = ""
         var isInitialLoadDone = false
         var lastHTML: String = ""
@@ -79,15 +79,21 @@ struct MarkdownWebView: NSViewRepresentable {
             }
         }
 
-        func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (Bool) -> Void) {
+        func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            guard message.name == "loadImage",
+                  let body = message.body as? [String: String],
+                  let id = body["id"],
+                  let src = body["src"] else { return }
             let alert = NSAlert()
             alert.messageText = "Load External Image"
-            alert.informativeText = message
+            alert.informativeText = src
             alert.addButton(withTitle: "Load")
             alert.addButton(withTitle: "Cancel")
             alert.alertStyle = .informational
-            let response = alert.runModal()
-            completionHandler(response == .alertFirstButtonReturn)
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+            let jsId = HTMLBuilder.jsonEncode(id)
+            let jsSrc = HTMLBuilder.jsonEncode(src)
+            message.webView?.evaluateJavaScript("window.__modsLoadImage(\(jsId), \(jsSrc))")
         }
 
     }
@@ -99,6 +105,7 @@ struct MarkdownWebView: NSViewRepresentable {
         webView.autoresizingMask = [.width, .height]
         webView.navigationDelegate = context.coordinator
         webView.uiDelegate = context.coordinator
+        webView.configuration.userContentController.add(context.coordinator, name: "loadImage")
         context.coordinator.currentMarkdown = markdown
 
         if !markdown.isEmpty {

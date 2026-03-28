@@ -59,6 +59,7 @@ enum HTMLBuilder {
         }
         controller.addUserScript(WKUserScript(source: postProcessScript, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
 
+        // Note: loadImage message handler is added per-webview in MarkdownWebView
         config.userContentController = controller
         _sharedConfig = config
         return config
@@ -234,8 +235,12 @@ enum HTMLBuilder {
                 });
             }
         }
-        // Blocked external images — click to load with confirmation
+        // Blocked external images — click to load with confirmation via Swift
         document.querySelectorAll('.blocked-image').forEach(function(el) {
+            if (el.getAttribute('data-img-ready')) return;
+            el.setAttribute('data-img-ready', '1');
+            var id = '__mods-img-' + Date.now() + '-' + Math.random().toString(36).substr(2, 6);
+            el.id = id;
             el.setAttribute('role', 'button');
             el.setAttribute('aria-label', 'Load external image: ' + (el.getAttribute('data-img-src') || ''));
             el.setAttribute('tabindex', '0');
@@ -243,24 +248,29 @@ enum HTMLBuilder {
             el.addEventListener('click', function() {
                 var src = el.getAttribute('data-img-src');
                 if (!src || (!src.startsWith('https://') && !src.startsWith('http://'))) return;
-                if (!confirm('Load external image?\\n\\n' + src)) return;
-                // Show loading state
-                el.className = 'blocked-image loading-image';
-                el.innerHTML = '<div class="loading-spinner"></div><div class="blocked-image-label">Loading...</div><div class="blocked-image-url">' + src.replace(/</g, '&lt;') + '</div>';
-                var img = document.createElement('img');
-                img.style.maxWidth = '100%';
-                img.onload = function() {
-                    el.className = 'loaded-image';
-                    el.innerHTML = '';
-                    el.appendChild(img);
-                };
-                img.onerror = function() {
-                    el.className = 'blocked-image';
-                    el.innerHTML = '<div class="blocked-image-icon">&#x26A0;</div><div class="blocked-image-label">Failed to load</div><div class="blocked-image-url">' + src.replace(/</g, '&lt;') + '</div><div class="blocked-image-action">Click to retry</div>';
-                };
-                img.src = src;
+                window.webkit.messageHandlers.loadImage.postMessage({ id: id, src: src });
             });
         });
+        // Called from Swift after user confirms
+        window.__modsLoadImage = function(id, src) {
+            var el = document.getElementById(id);
+            if (!el) return;
+            el.className = 'blocked-image loading-image';
+            el.innerHTML = '<div class="loading-spinner"></div><div class="blocked-image-label">Loading...</div><div class="blocked-image-url">' + src.replace(/</g, '&lt;') + '</div>';
+            var img = document.createElement('img');
+            img.style.maxWidth = '100%';
+            img.onload = function() {
+                el.className = 'loaded-image';
+                el.innerHTML = '';
+                el.appendChild(img);
+            };
+            img.onerror = function() {
+                el.className = 'blocked-image';
+                el.setAttribute('data-img-src', src);
+                el.innerHTML = '<div class="blocked-image-icon">&#x26A0;</div><div class="blocked-image-label">Failed to load</div><div class="blocked-image-url">' + src.replace(/</g, '&lt;') + '</div><div class="blocked-image-action">Click to retry</div>';
+            };
+            img.src = src;
+        };
     };
     window.__modsPostProcess();
 
