@@ -271,61 +271,121 @@ enum HTMLBuilder {
         });
     })();
 
-    // Search highlight functions (UI driven by SwiftUI toolbar)
+    // Multi-highlight search manager (UI driven by SwiftUI toolbar)
     (function() {
-        // Hidden input to store search term from Swift
+        var COLORS = [
+            {bg:'#ffd33d80',text:'inherit'}, {bg:'#58a6ff80',text:'inherit'},
+            {bg:'#3fb95080',text:'inherit'}, {bg:'#f0883e80',text:'inherit'},
+            {bg:'#bc8cff80',text:'inherit'}
+        ];
+        var MAX_SLOTS = COLORS.length;
+
+        window.__modsSearch = {
+            terms: [],
+
+            _highlightTerm: function(entry) {
+                var content = document.getElementById('content');
+                var walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT, null);
+                var nodes = [];
+                while (walker.nextNode()) { nodes.push(walker.currentNode); }
+                var count = 0;
+                var lowerTerm = entry.term.toLowerCase();
+                var cls = '__mods-hl-' + entry.slot;
+                nodes.forEach(function(node) {
+                    if (node.parentNode && node.parentNode.closest && node.parentNode.closest('[class^="__mods-hl-"]')) return;
+                    var text = node.textContent;
+                    var lower = text.toLowerCase();
+                    var idx = lower.indexOf(lowerTerm);
+                    if (idx === -1) return;
+                    var frag = document.createDocumentFragment();
+                    var pos = 0;
+                    while (idx !== -1) {
+                        frag.appendChild(document.createTextNode(text.substring(pos, idx)));
+                        var mark = document.createElement('mark');
+                        mark.className = '__mods-highlight ' + cls;
+                        mark.style.cssText = 'background:' + COLORS[entry.slot].bg + ';color:' + COLORS[entry.slot].text + ';border-radius:2px;';
+                        mark.textContent = text.substring(idx, idx + entry.term.length);
+                        frag.appendChild(mark);
+                        count++;
+                        pos = idx + entry.term.length;
+                        idx = lower.indexOf(lowerTerm, pos);
+                    }
+                    frag.appendChild(document.createTextNode(text.substring(pos)));
+                    node.parentNode.replaceChild(frag, node);
+                });
+                entry.count = count;
+                return count;
+            },
+
+            _rebuildAll: function() {
+                this._clearMarks();
+                for (var i = 0; i < this.terms.length; i++) {
+                    this._highlightTerm(this.terms[i]);
+                }
+            },
+
+            _clearMarks: function(cls) {
+                var selector = cls ? '.' + cls : '.__mods-highlight';
+                var highlights = document.querySelectorAll(selector);
+                if (highlights.length === 0) return;
+                highlights.forEach(function(el) { el.replaceWith(el.textContent); });
+                document.getElementById('content').normalize();
+            },
+
+            _nextSlot: function() {
+                var used = this.terms.map(function(e) { return e.slot; });
+                for (var i = 0; i < MAX_SLOTS; i++) {
+                    if (used.indexOf(i) === -1) return i;
+                }
+                var oldest = this.terms.shift();
+                this._clearMarks('__mods-hl-' + oldest.slot);
+                document.getElementById('content').normalize();
+                return oldest.slot;
+            },
+
+            add: function(term) {
+                if (!term || term.length < 2) return JSON.stringify(this.terms);
+                var lower = term.toLowerCase();
+                for (var i = 0; i < this.terms.length; i++) {
+                    if (this.terms[i].term.toLowerCase() === lower) return JSON.stringify(this.terms);
+                }
+                var slot = this._nextSlot();
+                var entry = { term: term, slot: slot, count: 0 };
+                this.terms.push(entry);
+                this._rebuildAll();
+                var first = document.querySelector('.__mods-hl-' + slot);
+                if (first) first.scrollIntoView({ block: 'center' });
+                return JSON.stringify(this.terms);
+            },
+
+            remove: function(term) {
+                var lower = term.toLowerCase();
+                this.terms = this.terms.filter(function(e) { return e.term.toLowerCase() !== lower; });
+                this._rebuildAll();
+                return JSON.stringify(this.terms);
+            },
+
+            clearAll: function() {
+                this.terms = [];
+                this._clearMarks();
+                return '[]';
+            },
+
+            getTerms: function() {
+                return JSON.stringify(this.terms);
+            }
+        };
+
+        // Backward compatibility
+        window.__modsClearHighlights = function() { window.__modsSearch.clearAll(); };
+        window.__modsFindHighlight = function() {
+            var input = document.getElementById('__mods-find-input');
+            if (input) window.__modsSearch.add(input.value);
+        };
         var hiddenInput = document.createElement('input');
         hiddenInput.id = '__mods-find-input';
         hiddenInput.type = 'hidden';
         document.body.appendChild(hiddenInput);
-        var countSpan = document.createElement('span');
-        countSpan.id = '__mods-find-count';
-        countSpan.style.display = 'none';
-        document.body.appendChild(countSpan);
-
-        window.__modsClearHighlights = function() {
-            var highlights = document.querySelectorAll('.__mods-highlight');
-            if (highlights.length === 0) return;
-            highlights.forEach(function(el) {
-                el.replaceWith(el.textContent);
-            });
-            document.getElementById('content').normalize();
-        };
-
-        window.__modsFindHighlight = function() {
-            window.__modsClearHighlights();
-            var term = document.getElementById('__mods-find-input').value;
-            if (!term || term.length < 2) return;
-            var content = document.getElementById('content');
-            var walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT, null);
-            var nodes = [];
-            while (walker.nextNode()) { nodes.push(walker.currentNode); }
-            var count = 0;
-            var lowerTerm = term.toLowerCase();
-            nodes.forEach(function(node) {
-                var text = node.textContent;
-                var lower = text.toLowerCase();
-                var idx = lower.indexOf(lowerTerm);
-                if (idx === -1) return;
-                var frag = document.createDocumentFragment();
-                var pos = 0;
-                while (idx !== -1) {
-                    frag.appendChild(document.createTextNode(text.substring(pos, idx)));
-                    var mark = document.createElement('mark');
-                    mark.className = '__mods-highlight';
-                    mark.style.cssText = 'background:#fff3a8;color:#1f2328;border-radius:2px;';
-                    mark.textContent = text.substring(idx, idx + term.length);
-                    frag.appendChild(mark);
-                    count++;
-                    pos = idx + term.length;
-                    idx = lower.indexOf(lowerTerm, pos);
-                }
-                frag.appendChild(document.createTextNode(text.substring(pos)));
-                node.parentNode.replaceChild(frag, node);
-            });
-            var first = document.querySelector('.__mods-highlight');
-            if (first) { first.scrollIntoView({ block: 'center' }); }
-        };
     })();
     """
 
