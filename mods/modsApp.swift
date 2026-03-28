@@ -280,6 +280,7 @@ struct FileView: View {
             .onSubmit(of: .search) {
                 guard !searchText.isEmpty else { return }
                 searchAddTrigger += 1
+                searchText = ""
             }
             .onChange(of: isSearching) {
                 if !isSearching { searchText = "" }
