@@ -273,12 +273,7 @@ enum HTMLBuilder {
 
     // Multi-highlight search manager (UI driven by SwiftUI toolbar)
     (function() {
-        var COLORS = [
-            {bg:'#ffd33d80',text:'inherit'}, {bg:'#58a6ff80',text:'inherit'},
-            {bg:'#3fb95080',text:'inherit'}, {bg:'#f0883e80',text:'inherit'},
-            {bg:'#bc8cff80',text:'inherit'}
-        ];
-        var MAX_SLOTS = COLORS.length;
+        var MAX_SLOTS = 5;
 
         window.__modsSearch = {
             terms: [],
@@ -303,7 +298,6 @@ enum HTMLBuilder {
                         frag.appendChild(document.createTextNode(text.substring(pos, idx)));
                         var mark = document.createElement('mark');
                         mark.className = '__mods-highlight ' + cls;
-                        mark.style.cssText = 'background:' + COLORS[entry.slot].bg + ';color:' + COLORS[entry.slot].text + ';border-radius:2px;';
                         mark.textContent = text.substring(idx, idx + entry.term.length);
                         frag.appendChild(mark);
                         count++;
