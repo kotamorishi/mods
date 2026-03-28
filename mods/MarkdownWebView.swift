@@ -36,7 +36,6 @@ struct MarkdownWebView: NSViewRepresentable {
         var isInitialLoadDone = false
         var lastHTML: String = ""
         var pendingPostLoadJS: String = ""
-        var lastSearchText: String = ""
         var lastSearchAddTrigger: Int = 0
         var lastSearchRemoveTrigger: Int = 0
         var lastSearchClearTrigger: Int = 0
@@ -80,7 +79,6 @@ struct MarkdownWebView: NSViewRepresentable {
         webView.autoresizingMask = [.width, .height]
         webView.navigationDelegate = context.coordinator
         context.coordinator.currentMarkdown = markdown
-        context.coordinator.lastSearchText = searchText
 
         if !markdown.isEmpty {
             let bodyHTML = MarkdownRenderer.renderToHTML(markdown)
@@ -115,10 +113,10 @@ struct MarkdownWebView: NSViewRepresentable {
         // Search: add term
         if context.coordinator.lastSearchAddTrigger != searchAddTrigger {
             context.coordinator.lastSearchAddTrigger = searchAddTrigger
-            if searchText.count >= 2 {
+            if context.coordinator.isInitialLoadDone && searchText.count >= 2 {
                 let encoded = HTMLBuilder.jsonEncode(searchText)
                 webView.evaluateJavaScript("window.__modsSearch.add(\(encoded))") { result, _ in
-                    if let json = result as? String { updateActiveTerms(from: json) }
+                    if let json = result as? String { self.updateActiveTerms(from: json) }
                 }
             }
         }
@@ -126,17 +124,21 @@ struct MarkdownWebView: NSViewRepresentable {
         // Search: remove term
         if context.coordinator.lastSearchRemoveTrigger != searchRemoveTrigger {
             context.coordinator.lastSearchRemoveTrigger = searchRemoveTrigger
-            let encoded = HTMLBuilder.jsonEncode(searchRemoveTerm)
-            webView.evaluateJavaScript("window.__modsSearch.remove(\(encoded))") { result, _ in
-                if let json = result as? String { updateActiveTerms(from: json) }
+            if context.coordinator.isInitialLoadDone {
+                let encoded = HTMLBuilder.jsonEncode(searchRemoveTerm)
+                webView.evaluateJavaScript("window.__modsSearch.remove(\(encoded))") { result, _ in
+                    if let json = result as? String { self.updateActiveTerms(from: json) }
+                }
             }
         }
 
         // Search: clear all
         if context.coordinator.lastSearchClearTrigger != searchClearTrigger {
             context.coordinator.lastSearchClearTrigger = searchClearTrigger
-            webView.evaluateJavaScript("window.__modsSearch.clearAll()") { result, _ in
-                if let json = result as? String { updateActiveTerms(from: json) }
+            if context.coordinator.isInitialLoadDone {
+                webView.evaluateJavaScript("window.__modsSearch.clearAll()") { result, _ in
+                    if let json = result as? String { self.updateActiveTerms(from: json) }
+                }
             }
         }
 

@@ -173,9 +173,9 @@ pre:hover .__mods-copy-btn { opacity: 1; }
 .__mods-hl-3 { background: #f0883e80; }
 .__mods-hl-4 { background: #bc8cff80; }
 @media (prefers-color-scheme: dark) {
-    .__mods-hl-0 { background: #ffd33d60; }
-    .__mods-hl-1 { background: #58a6ff60; }
-    .__mods-hl-2 { background: #3fb95060; }
-    .__mods-hl-3 { background: #f0883e60; }
-    .__mods-hl-4 { background: #bc8cff60; }
+    .__mods-hl-0 { background: #ffd33d80; }
+    .__mods-hl-1 { background: #58a6ff80; }
+    .__mods-hl-2 { background: #3fb95080; }
+    .__mods-hl-3 { background: #f0883e80; }
+    .__mods-hl-4 { background: #bc8cff80; }
 }
