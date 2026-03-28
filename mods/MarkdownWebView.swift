@@ -113,7 +113,7 @@ struct MarkdownWebView: NSViewRepresentable {
         // Search: add term
         if context.coordinator.lastSearchAddTrigger != searchAddTrigger {
             context.coordinator.lastSearchAddTrigger = searchAddTrigger
-            if context.coordinator.isInitialLoadDone && searchText.count >= 2 {
+            if context.coordinator.isInitialLoadDone && searchText.count >= 2 && searchText.count <= 256 {
                 let encoded = HTMLBuilder.jsonEncode(searchText)
                 webView.evaluateJavaScript("window.__modsSearch.add(\(encoded))") { result, _ in
                     if let json = result as? String { self.updateActiveTerms(from: json) }

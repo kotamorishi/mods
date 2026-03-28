@@ -284,7 +284,7 @@ struct FileView: View {
             }
             .searchable(text: $searchText, isPresented: $isSearching, placement: .toolbar, prompt: "Search and press Enter to highlight...")
             .onSubmit(of: .search) {
-                guard searchText.count >= 2 else { return }
+                guard searchText.count >= 2 && searchText.count <= 256 else { return }
                 searchAddTrigger += 1
                 searchText = ""
             }

@@ -286,7 +286,9 @@ enum HTMLBuilder {
                 var count = 0;
                 var lowerTerm = entry.term.toLowerCase();
                 var cls = '__mods-hl-' + entry.slot;
+                var MAX_MATCHES = 10000;
                 nodes.forEach(function(node) {
+                    if (count >= MAX_MATCHES) return;
                     if (node.parentNode && node.parentNode.closest && node.parentNode.closest('.__mods-highlight')) return;
                     var text = node.textContent;
                     var lower = text.toLowerCase();
@@ -294,7 +296,7 @@ enum HTMLBuilder {
                     if (idx === -1) return;
                     var frag = document.createDocumentFragment();
                     var pos = 0;
-                    while (idx !== -1) {
+                    while (idx !== -1 && count < MAX_MATCHES) {
                         frag.appendChild(document.createTextNode(text.substring(pos, idx)));
                         var mark = document.createElement('mark');
                         mark.className = '__mods-highlight ' + cls;
@@ -339,7 +341,7 @@ enum HTMLBuilder {
             },
 
             add: function(term) {
-                if (!term || term.length < 2) return JSON.stringify(this.terms);
+                if (!term || term.length < 2 || term.length > 256) return JSON.stringify(this.terms);
                 var lower = term.toLowerCase();
                 for (var i = 0; i < this.terms.length; i++) {
                     if (this.terms[i].term.toLowerCase() === lower) return JSON.stringify(this.terms);
