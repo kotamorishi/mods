@@ -25,8 +25,15 @@ struct MarkdownWebView: NSViewRepresentable {
     let exportPDFTrigger: Int
     let tocScrollTarget: String
 
-    /// WKWebView subclass that filters irrelevant context menu items.
+    /// WKWebView subclass that filters context menu items and handles file drops.
     class ModsWebView: WKWebView {
+        override init(frame: CGRect, configuration: WKWebViewConfiguration) {
+            super.init(frame: frame, configuration: configuration)
+            registerForDraggedTypes([.fileURL])
+        }
+
+        required init?(coder: NSCoder) { fatalError() }
+
         override func willOpenMenu(_ menu: NSMenu, with event: NSEvent) {
             let removeSelectors: Set<String> = [
                 "reload:", "goBack:", "goForward:",
@@ -39,6 +46,20 @@ struct MarkdownWebView: NSViewRepresentable {
                 return false
             }
             super.willOpenMenu(menu, with: event)
+        }
+
+        override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
+            sender.draggingPasteboard.canReadObject(forClasses: [NSURL.self], options: nil) ? .copy : []
+        }
+
+        override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
+            guard let urls = sender.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL] else {
+                return false
+            }
+            for url in urls where URLValidator.isSafe(url) {
+                NotificationCenter.default.post(name: .openFileFromFinder, object: url)
+            }
+            return !urls.isEmpty
         }
     }
 
@@ -96,8 +117,6 @@ struct MarkdownWebView: NSViewRepresentable {
         webView.autoresizingMask = [.width, .height]
         webView.navigationDelegate = context.coordinator
         webView.uiDelegate = context.coordinator
-        // Unregister drop types so SwiftUI .onDrop receives file drops
-        webView.unregisterDraggedTypes()
         // Remove existing handler (shared controller) before adding to avoid duplicate crash
         let controller = webView.configuration.userContentController
         controller.removeScriptMessageHandler(forName: "loadImage")

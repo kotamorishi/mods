@@ -44,6 +44,11 @@ struct modsApp: App {
         WindowGroup(for: URL.self) { $url in
             if let url {
                 FileView(initialURL: url)
+                    .onReceive(NotificationCenter.default.publisher(for: .openFileFromFinder)) { notification in
+                        if let fileURL = notification.object as? URL {
+                            openWindow(value: fileURL)
+                        }
+                    }
             }
         }
         .commands {
