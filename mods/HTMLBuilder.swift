@@ -298,6 +298,7 @@ enum HTMLBuilder {
                         frag.appendChild(document.createTextNode(text.substring(pos, idx)));
                         var mark = document.createElement('mark');
                         mark.className = '__mods-highlight ' + cls;
+                        mark.setAttribute('aria-label', 'Highlighted: ' + entry.term);
                         mark.textContent = text.substring(idx, idx + entry.term.length);
                         frag.appendChild(mark);
                         count++;
