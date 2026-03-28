@@ -175,10 +175,7 @@ struct FileView: View {
     @State private var fileWatcher: FileWatcher?
     @State private var searchText: String = ""
     @State private var isSearching: Bool = false
-    @State private var searchAddTrigger: Int = 0
-    @State private var searchRemoveTerm: String = ""
-    @State private var searchRemoveTrigger: Int = 0
-    @State private var searchClearTrigger: Int = 0
+    @State private var search = SearchState()
     @State private var activeSearchTerms: [(term: String, slot: Int, count: Int)] = []
     @State private var printTrigger: Int = 0
     @State private var exportPDFTrigger: Int = 0
@@ -217,14 +214,14 @@ struct FileView: View {
                     }
                     Divider()
                 }
-                MarkdownWebView(markdown: markdown, zoomLevel: zoomLevel, searchText: searchText, searchAddTrigger: searchAddTrigger, searchRemoveTerm: searchRemoveTerm, searchRemoveTrigger: searchRemoveTrigger, searchClearTrigger: searchClearTrigger, activeSearchTerms: $activeSearchTerms, printTrigger: printTrigger, exportPDFTrigger: exportPDFTrigger, tocScrollTarget: tocScrollTarget)
+                MarkdownWebView(markdown: markdown, zoomLevel: zoomLevel, search: search, activeSearchTerms: $activeSearchTerms, printTrigger: printTrigger, exportPDFTrigger: exportPDFTrigger, tocScrollTarget: tocScrollTarget)
             }
             if !activeSearchTerms.isEmpty {
                 SearchTermsBar(terms: activeSearchTerms, onRemove: { term in
-                    searchRemoveTerm = term
-                    searchRemoveTrigger += 1
+                    search.removeTerm = term
+                    search.removeTrigger += 1
                 }, onClearAll: {
-                    searchClearTrigger += 1
+                    search.clearTrigger += 1
                 })
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
@@ -285,7 +282,8 @@ struct FileView: View {
             .searchable(text: $searchText, isPresented: $isSearching, placement: .toolbar, prompt: "Search and press Enter to highlight...")
             .onSubmit(of: .search) {
                 guard searchText.count >= 2 && searchText.count <= 256 else { return }
-                searchAddTrigger += 1
+                search.text = searchText
+                search.addTrigger += 1
                 searchText = ""
             }
             .onChange(of: isSearching) {
@@ -324,7 +322,7 @@ struct FileView: View {
     private func performPrint() { printTrigger += 1 }
     private func performExportPDF() { exportPDFTrigger += 1 }
     private func toggleTOC() { showTOC.toggle() }
-    private func clearHighlights() { searchClearTrigger += 1 }
+    private func clearHighlights() { search.clearTrigger += 1 }
 
     private func openFile() {
         for url in FilePickerHelper.runOpenPanel() {

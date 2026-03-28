@@ -1,14 +1,18 @@
 import SwiftUI
 import WebKit
 
+struct SearchState {
+    var text: String = ""
+    var addTrigger: Int = 0
+    var removeTerm: String = ""
+    var removeTrigger: Int = 0
+    var clearTrigger: Int = 0
+}
+
 struct MarkdownWebView: NSViewRepresentable {
     let markdown: String
     let zoomLevel: Double
-    let searchText: String
-    let searchAddTrigger: Int
-    let searchRemoveTerm: String
-    let searchRemoveTrigger: Int
-    let searchClearTrigger: Int
+    let search: SearchState
     @Binding var activeSearchTerms: [(term: String, slot: Int, count: Int)]
     let printTrigger: Int
     let exportPDFTrigger: Int
@@ -36,9 +40,7 @@ struct MarkdownWebView: NSViewRepresentable {
         var isInitialLoadDone = false
         var lastHTML: String = ""
         var pendingPostLoadJS: String = ""
-        var lastSearchAddTrigger: Int = 0
-        var lastSearchRemoveTrigger: Int = 0
-        var lastSearchClearTrigger: Int = 0
+        var lastSearch = SearchState()
         var lastPrintTrigger: Int = 0
         var lastExportPDFTrigger: Int = 0
         var lastTOCTarget: String = ""
@@ -110,35 +112,23 @@ struct MarkdownWebView: NSViewRepresentable {
             }
         }
 
-        // Search: add term
-        if context.coordinator.lastSearchAddTrigger != searchAddTrigger {
-            context.coordinator.lastSearchAddTrigger = searchAddTrigger
-            if context.coordinator.isInitialLoadDone && searchText.count >= 2 && searchText.count <= 256 {
-                let encoded = HTMLBuilder.jsonEncode(searchText)
-                webView.evaluateJavaScript("window.__modsSearch.add(\(encoded))") { result, _ in
-                    if let json = result as? String { self.updateActiveTerms(from: json) }
+        // Search operations
+        if context.coordinator.isInitialLoadDone {
+            if context.coordinator.lastSearch.addTrigger != search.addTrigger {
+                context.coordinator.lastSearch.addTrigger = search.addTrigger
+                if search.text.count >= 2 && search.text.count <= 256 {
+                    let encoded = HTMLBuilder.jsonEncode(search.text)
+                    evaluateSearchJS("window.__modsSearch.add(\(encoded))", webView: webView)
                 }
             }
-        }
-
-        // Search: remove term
-        if context.coordinator.lastSearchRemoveTrigger != searchRemoveTrigger {
-            context.coordinator.lastSearchRemoveTrigger = searchRemoveTrigger
-            if context.coordinator.isInitialLoadDone {
-                let encoded = HTMLBuilder.jsonEncode(searchRemoveTerm)
-                webView.evaluateJavaScript("window.__modsSearch.remove(\(encoded))") { result, _ in
-                    if let json = result as? String { self.updateActiveTerms(from: json) }
-                }
+            if context.coordinator.lastSearch.removeTrigger != search.removeTrigger {
+                context.coordinator.lastSearch.removeTrigger = search.removeTrigger
+                let encoded = HTMLBuilder.jsonEncode(search.removeTerm)
+                evaluateSearchJS("window.__modsSearch.remove(\(encoded))", webView: webView)
             }
-        }
-
-        // Search: clear all
-        if context.coordinator.lastSearchClearTrigger != searchClearTrigger {
-            context.coordinator.lastSearchClearTrigger = searchClearTrigger
-            if context.coordinator.isInitialLoadDone {
-                webView.evaluateJavaScript("window.__modsSearch.clearAll()") { result, _ in
-                    if let json = result as? String { self.updateActiveTerms(from: json) }
-                }
+            if context.coordinator.lastSearch.clearTrigger != search.clearTrigger {
+                context.coordinator.lastSearch.clearTrigger = search.clearTrigger
+                evaluateSearchJS("window.__modsSearch.clearAll()", webView: webView)
             }
         }
 
@@ -191,20 +181,26 @@ struct MarkdownWebView: NSViewRepresentable {
                     do {
                         try data.write(to: url)
                     } catch {
-                        let alert = NSAlert()
-                        alert.messageText = "Export Failed"
-                        alert.informativeText = "Could not save PDF: \(error.localizedDescription)"
-                        alert.alertStyle = .warning
-                        alert.runModal()
+                        Self.showExportError("Could not save PDF: \(error.localizedDescription)")
                     }
                 case .failure(let error):
-                    let alert = NSAlert()
-                    alert.messageText = "Export Failed"
-                    alert.informativeText = "Could not create PDF: \(error.localizedDescription)"
-                    alert.alertStyle = .warning
-                    alert.runModal()
+                    Self.showExportError("Could not create PDF: \(error.localizedDescription)")
                 }
             }
+        }
+    }
+
+    private static func showExportError(_ message: String) {
+        let alert = NSAlert()
+        alert.messageText = "Export Failed"
+        alert.informativeText = message
+        alert.alertStyle = .warning
+        alert.runModal()
+    }
+
+    private func evaluateSearchJS(_ js: String, webView: WKWebView) {
+        webView.evaluateJavaScript(js) { result, _ in
+            if let json = result as? String { self.updateActiveTerms(from: json) }
         }
     }
 

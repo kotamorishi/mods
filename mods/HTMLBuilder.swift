@@ -330,9 +330,9 @@ enum HTMLBuilder {
             },
 
             _nextSlot: function() {
-                var used = this.terms.map(function(e) { return e.slot; });
+                var used = new Set(this.terms.map(function(e) { return e.slot; }));
                 for (var i = 0; i < MAX_SLOTS; i++) {
-                    if (used.indexOf(i) === -1) return i;
+                    if (!used.has(i)) return i;
                 }
                 var oldest = this.terms.shift();
                 this._clearMarks('__mods-hl-' + oldest.slot);
