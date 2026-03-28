@@ -170,6 +170,10 @@ struct FileView: View {
     @State private var fileWatcher: FileWatcher?
     @State private var searchText: String = ""
     @State private var isSearching: Bool = false
+    @State private var searchAddTrigger: Int = 0
+    @State private var searchRemoveTerm: String = ""
+    @State private var searchClearTrigger: Int = 0
+    @State private var activeSearchTerms: [(term: String, slot: Int, count: Int)] = []
     @State private var printTrigger: Int = 0
     @State private var exportPDFTrigger: Int = 0
     @State private var tocScrollTarget: String = ""
@@ -207,7 +211,14 @@ struct FileView: View {
                     }
                     Divider()
                 }
-                MarkdownWebView(markdown: markdown, zoomLevel: zoomLevel, searchText: searchText, printTrigger: printTrigger, exportPDFTrigger: exportPDFTrigger, tocScrollTarget: tocScrollTarget)
+                MarkdownWebView(markdown: markdown, zoomLevel: zoomLevel, searchText: searchText, searchAddTrigger: searchAddTrigger, searchRemoveTerm: searchRemoveTerm, searchClearTrigger: searchClearTrigger, activeSearchTerms: $activeSearchTerms, printTrigger: printTrigger, exportPDFTrigger: exportPDFTrigger, tocScrollTarget: tocScrollTarget)
+            }
+            if !activeSearchTerms.isEmpty {
+                SearchTermsBar(terms: activeSearchTerms, onRemove: { term in
+                    searchRemoveTerm = term
+                }, onClearAll: {
+                    searchClearTrigger += 1
+                })
             }
             if !markdown.isEmpty {
                 HStack {
@@ -263,7 +274,11 @@ struct FileView: View {
                     }
                 }
             }
-            .searchable(text: $searchText, isPresented: $isSearching, placement: .toolbar, prompt: "Search...")
+            .searchable(text: $searchText, isPresented: $isSearching, placement: .toolbar, prompt: "Search and press Enter to highlight...")
+            .onSubmit(of: .search) {
+                guard !searchText.isEmpty else { return }
+                searchAddTrigger += 1
+            }
             .onChange(of: isSearching) {
                 if !isSearching { searchText = "" }
             }
@@ -378,6 +393,59 @@ extension FocusedValues {
     var tocAction: (() -> Void)? {
         get { self[TOCActionKey.self] }
         set { self[TOCActionKey.self] = newValue }
+    }
+}
+
+/// Pill-style bar showing active search highlights with dismiss buttons.
+struct SearchTermsBar: View {
+    private static let slotColors: [Color] = [
+        Color(red: 1.0, green: 0.83, blue: 0.24),
+        Color(red: 0.35, green: 0.65, blue: 1.0),
+        Color(red: 0.25, green: 0.73, blue: 0.31),
+        Color(red: 0.94, green: 0.53, blue: 0.24),
+        Color(red: 0.74, green: 0.55, blue: 1.0),
+    ]
+
+    let terms: [(term: String, slot: Int, count: Int)]
+    let onRemove: (String) -> Void
+    let onClearAll: () -> Void
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(Array(terms.enumerated()), id: \.element.term) { _, entry in
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(Self.slotColors[entry.slot % Self.slotColors.count])
+                        .frame(width: 8, height: 8)
+                    Text(entry.term)
+                        .lineLimit(1)
+                    Text("\(entry.count)")
+                        .foregroundStyle(.secondary)
+                    Button {
+                        onRemove(entry.term)
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 9, weight: .semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                }
+                .font(.system(size: 11))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(.quaternary, in: Capsule())
+            }
+            Spacer()
+            Button("Clear All") {
+                onClearAll()
+            }
+            .font(.system(size: 11))
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 4)
+        .background(.bar)
     }
 }
 

@@ -5,6 +5,10 @@ struct MarkdownWebView: NSViewRepresentable {
     let markdown: String
     let zoomLevel: Double
     let searchText: String
+    let searchAddTrigger: Int
+    let searchRemoveTerm: String
+    let searchClearTrigger: Int
+    @Binding var activeSearchTerms: [(term: String, slot: Int, count: Int)]
     let printTrigger: Int
     let exportPDFTrigger: Int
     let tocScrollTarget: String
@@ -32,6 +36,9 @@ struct MarkdownWebView: NSViewRepresentable {
         var lastHTML: String = ""
         var pendingPostLoadJS: String = ""
         var lastSearchText: String = ""
+        var lastSearchAddTrigger: Int = 0
+        var lastSearchRemoveTerm: String = ""
+        var lastSearchClearTrigger: Int = 0
         var lastPrintTrigger: Int = 0
         var lastExportPDFTrigger: Int = 0
         var lastTOCTarget: String = ""
@@ -104,14 +111,31 @@ struct MarkdownWebView: NSViewRepresentable {
             }
         }
 
-        // Search highlighting
-        if context.coordinator.lastSearchText != searchText {
-            context.coordinator.lastSearchText = searchText
+        // Search: add term
+        if context.coordinator.lastSearchAddTrigger != searchAddTrigger {
+            context.coordinator.lastSearchAddTrigger = searchAddTrigger
             if searchText.count >= 2 {
                 let encoded = HTMLBuilder.jsonEncode(searchText)
-                webView.evaluateJavaScript("document.getElementById('__mods-find-input').value=\(encoded); window.__modsFindHighlight();")
-            } else {
-                webView.evaluateJavaScript("window.__modsClearHighlights(); document.getElementById('__mods-find-count').textContent='';")
+                webView.evaluateJavaScript("window.__modsSearch.add(\(encoded))") { result, _ in
+                    if let json = result as? String { updateActiveTerms(from: json) }
+                }
+            }
+        }
+
+        // Search: remove term
+        if context.coordinator.lastSearchRemoveTerm != searchRemoveTerm && !searchRemoveTerm.isEmpty {
+            context.coordinator.lastSearchRemoveTerm = searchRemoveTerm
+            let encoded = HTMLBuilder.jsonEncode(searchRemoveTerm)
+            webView.evaluateJavaScript("window.__modsSearch.remove(\(encoded))") { result, _ in
+                if let json = result as? String { updateActiveTerms(from: json) }
+            }
+        }
+
+        // Search: clear all
+        if context.coordinator.lastSearchClearTrigger != searchClearTrigger {
+            context.coordinator.lastSearchClearTrigger = searchClearTrigger
+            webView.evaluateJavaScript("window.__modsSearch.clearAll()") { result, _ in
+                if let json = result as? String { updateActiveTerms(from: json) }
             }
         }
 
@@ -179,6 +203,21 @@ struct MarkdownWebView: NSViewRepresentable {
                 }
             }
         }
+    }
+
+    private func updateActiveTerms(from json: String) {
+        guard let data = json.data(using: .utf8),
+              let array = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            DispatchQueue.main.async { activeSearchTerms = [] }
+            return
+        }
+        let terms = array.compactMap { dict -> (term: String, slot: Int, count: Int)? in
+            guard let term = dict["term"] as? String,
+                  let slot = dict["slot"] as? Int,
+                  let count = dict["count"] as? Int else { return nil }
+            return (term, slot, count)
+        }
+        DispatchQueue.main.async { activeSearchTerms = terms }
     }
 
     private func updateContentViaJS(webView: WKWebView) {
