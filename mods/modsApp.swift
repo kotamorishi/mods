@@ -229,7 +229,7 @@ struct FileView: View {
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
             if !markdown.isEmpty {
-                HStack {
+                HStack(spacing: 8) {
                     Text("\(wordCount) words")
                     Text("·")
                     Text(readingTime)
@@ -239,6 +239,19 @@ struct FileView: View {
                             .lineLimit(1)
                             .truncationMode(.head)
                     }
+                    Divider().frame(height: 12)
+                    Image(systemName: "minus.magnifyingglass")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                    Slider(value: $zoomLevel, in: 0.25...5.0, step: 0.05)
+                        .frame(width: 100)
+                    Image(systemName: "plus.magnifyingglass")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                    Text("\(Int(zoomLevel * 100))%")
+                        .monospacedDigit()
+                        .frame(minWidth: 32, alignment: .trailing)
+                        .onTapGesture { zoomLevel = 1.0 }
                 }
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
@@ -257,29 +270,6 @@ struct FileView: View {
                         Image(systemName: "list.bullet")
                     }
                     .help("Toggle Outline")
-                }
-                ToolbarItem(placement: .primaryAction) {
-                    HStack(spacing: 2) {
-                        Button {
-                            zoomLevel = max(0.25, zoomLevel - 0.1)
-                        } label: {
-                            Image(systemName: "minus.magnifyingglass")
-                        }
-
-                        Button {
-                            zoomLevel = 1.0
-                        } label: {
-                            Text("\(Int(zoomLevel * 100))%")
-                                .monospacedDigit()
-                                .frame(minWidth: 40)
-                        }
-
-                        Button {
-                            zoomLevel = min(5.0, zoomLevel + 0.1)
-                        } label: {
-                            Image(systemName: "plus.magnifyingglass")
-                        }
-                    }
                 }
             }
             .searchable(text: $searchText, isPresented: $isSearching, placement: .toolbar, prompt: "Search and press Enter to highlight...")
