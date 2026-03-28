@@ -135,7 +135,7 @@ enum HTMLBuilder {
         <html>
         <head>
         <meta charset="utf-8">
-        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'none'; img-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none';">
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'none'; img-src https: http: data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none';">
         <meta name="referrer" content="no-referrer">
         \(styleBlock())
         </head>
@@ -234,7 +234,7 @@ enum HTMLBuilder {
                 });
             }
         }
-        // Blocked external images — click to load
+        // Blocked external images — click to load with confirmation
         document.querySelectorAll('.blocked-image').forEach(function(el) {
             el.setAttribute('role', 'button');
             el.setAttribute('aria-label', 'Load external image: ' + (el.getAttribute('data-img-src') || ''));
@@ -242,14 +242,23 @@ enum HTMLBuilder {
             el.addEventListener('keydown', function(e) { if (e.key === 'Enter') el.click(); });
             el.addEventListener('click', function() {
                 var src = el.getAttribute('data-img-src');
-                if (src && (src.startsWith('https://') || src.startsWith('http://'))) {
-                    var img = document.createElement('img');
-                    img.src = src;
-                    img.style.maxWidth = '100%';
+                if (!src || (!src.startsWith('https://') && !src.startsWith('http://'))) return;
+                if (!confirm('Load external image?\\n\\n' + src)) return;
+                // Show loading state
+                el.className = 'blocked-image loading-image';
+                el.innerHTML = '<div class="loading-spinner"></div><div class="blocked-image-label">Loading...</div><div class="blocked-image-url">' + src.replace(/</g, '&lt;') + '</div>';
+                var img = document.createElement('img');
+                img.style.maxWidth = '100%';
+                img.onload = function() {
                     el.className = 'loaded-image';
                     el.innerHTML = '';
                     el.appendChild(img);
-                }
+                };
+                img.onerror = function() {
+                    el.className = 'blocked-image';
+                    el.innerHTML = '<div class="blocked-image-icon">&#x26A0;</div><div class="blocked-image-label">Failed to load</div><div class="blocked-image-url">' + src.replace(/</g, '&lt;') + '</div><div class="blocked-image-action">Click to retry</div>';
+                };
+                img.src = src;
             });
         });
     };
