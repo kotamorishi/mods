@@ -206,10 +206,16 @@ pre:hover .__mods-copy-btn { opacity: 1; }
 .__mods-hl-2 { background: #3fb95080; }
 .__mods-hl-3 { background: #f0883e80; }
 .__mods-hl-4 { background: #bc8cff80; }
+.__mods-hl-preview { background: rgba(128,128,128,0.3); }
 @media (prefers-color-scheme: dark) {
     .__mods-hl-0 { background: #ffd33d80; }
     .__mods-hl-1 { background: #58a6ff80; }
     .__mods-hl-2 { background: #3fb95080; }
     .__mods-hl-3 { background: #f0883e80; }
     .__mods-hl-4 { background: #bc8cff80; }
+    .__mods-hl-preview { background: rgba(180,180,180,0.3); }
 }
+
+/* Scrollbar margin marks */
+#__mods-margin-marks { position: fixed; top: 0; right: 2px; width: 6px; height: 100vh; pointer-events: none; z-index: 99; }
+.__mods-margin-tick { position: absolute; width: 6px; height: 3px; border-radius: 1px; opacity: 0.8; }

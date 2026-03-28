@@ -306,31 +306,52 @@ enum HTMLBuilder {
                 var nodes = [];
                 while (walker.nextNode()) { nodes.push(walker.currentNode); }
                 var count = 0;
-                var lowerTerm = entry.term.toLowerCase();
+                var searchTerm = entry.caseSensitive ? entry.term : entry.term.toLowerCase();
                 var cls = '__mods-hl-' + entry.slot;
                 var MAX_MATCHES = 10000;
                 nodes.forEach(function(node) {
                     if (count >= MAX_MATCHES) return;
                     if (node.parentNode && node.parentNode.closest && node.parentNode.closest('.__mods-highlight')) return;
                     var text = node.textContent;
-                    var lower = text.toLowerCase();
-                    var idx = lower.indexOf(lowerTerm);
+                    var haystack = entry.caseSensitive ? text : text.toLowerCase();
+                    var idx = haystack.indexOf(searchTerm);
                     if (idx === -1) return;
-                    var frag = document.createDocumentFragment();
-                    var pos = 0;
-                    while (idx !== -1 && count < MAX_MATCHES) {
-                        frag.appendChild(document.createTextNode(text.substring(pos, idx)));
-                        var mark = document.createElement('mark');
-                        mark.className = '__mods-highlight ' + cls;
-                        mark.setAttribute('aria-label', 'Highlighted: ' + entry.term);
-                        mark.textContent = text.substring(idx, idx + entry.term.length);
-                        frag.appendChild(mark);
-                        count++;
-                        pos = idx + entry.term.length;
-                        idx = lower.indexOf(lowerTerm, pos);
+                    if (entry.wholeWord) {
+                        var re = new RegExp('\\b' + searchTerm.replace(/[.*+?^${}()|\\[\\]\\\\]/g, '\\\\$&') + '\\b', entry.caseSensitive ? 'g' : 'gi');
+                        var frag = document.createDocumentFragment();
+                        var lastIdx = 0;
+                        var m;
+                        while ((m = re.exec(text)) !== null && count < MAX_MATCHES) {
+                            frag.appendChild(document.createTextNode(text.substring(lastIdx, m.index)));
+                            var mark = document.createElement('mark');
+                            mark.className = '__mods-highlight ' + cls;
+                            mark.setAttribute('aria-label', 'Highlighted: ' + entry.term);
+                            mark.textContent = m[0];
+                            frag.appendChild(mark);
+                            count++;
+                            lastIdx = m.index + m[0].length;
+                        }
+                        if (count > 0) {
+                            frag.appendChild(document.createTextNode(text.substring(lastIdx)));
+                            node.parentNode.replaceChild(frag, node);
+                        }
+                    } else {
+                        var frag = document.createDocumentFragment();
+                        var pos = 0;
+                        while (idx !== -1 && count < MAX_MATCHES) {
+                            frag.appendChild(document.createTextNode(text.substring(pos, idx)));
+                            var mark = document.createElement('mark');
+                            mark.className = '__mods-highlight ' + cls;
+                            mark.setAttribute('aria-label', 'Highlighted: ' + entry.term);
+                            mark.textContent = text.substring(idx, idx + entry.term.length);
+                            frag.appendChild(mark);
+                            count++;
+                            pos = idx + entry.term.length;
+                            idx = haystack.indexOf(searchTerm, pos);
+                        }
+                        frag.appendChild(document.createTextNode(text.substring(pos)));
+                        node.parentNode.replaceChild(frag, node);
                     }
-                    frag.appendChild(document.createTextNode(text.substring(pos)));
-                    node.parentNode.replaceChild(frag, node);
                 });
                 entry.count = count;
                 return count;
@@ -363,57 +384,136 @@ enum HTMLBuilder {
                 return oldest.slot;
             },
 
-            add: function(term) {
-                if (!term || term.length < 2 || term.length > 256) return JSON.stringify(this.terms);
+            add: function(term, caseSensitive, wholeWord) {
+                if (!term || term.length < 2 || term.length > 256) return this._termsJSON();
                 var lower = term.toLowerCase();
                 for (var i = 0; i < this.terms.length; i++) {
-                    if (this.terms[i].term.toLowerCase() === lower) return JSON.stringify(this.terms);
+                    if (this.terms[i].term.toLowerCase() === lower) return this._termsJSON();
                 }
                 var slot = this._nextSlot();
-                var entry = { term: term, slot: slot, count: 0 };
+                var entry = { term: term, slot: slot, count: 0, navIndex: -1, caseSensitive: !!caseSensitive, wholeWord: !!wholeWord };
                 this.terms.push(entry);
                 this._rebuildAll();
-                // Remove if no matches found
                 if (entry.count === 0) {
                     this.terms = this.terms.filter(function(e) { return e !== entry; });
-                    return JSON.stringify(this.terms);
+                    return this._termsJSON();
                 }
+                entry.navIndex = 0;
                 var first = document.querySelector('.__mods-hl-' + slot);
-                if (first) first.scrollIntoView({ block: 'center' });
-                return JSON.stringify(this.terms);
+                if (first) {
+                    var prev = document.querySelector('.__mods-hl-current');
+                    if (prev) prev.classList.remove('__mods-hl-current');
+                    first.classList.add('__mods-hl-current');
+                    first.scrollIntoView({ block: 'center' });
+                }
+                this._updateMarginMarks();
+                return this._termsJSON();
             },
 
             remove: function(term) {
                 var lower = term.toLowerCase();
                 this.terms = this.terms.filter(function(e) { return e.term.toLowerCase() !== lower; });
                 this._rebuildAll();
-                return JSON.stringify(this.terms);
+                this._updateMarginMarks();
+                return this._termsJSON();
             },
 
             clearAll: function() {
                 this.terms = [];
                 this._clearMarks();
+                var c = document.getElementById('__mods-margin-marks');
+                if (c) c.innerHTML = '';
                 return '[]';
             },
 
-            scrollToNext: function(term) {
+            _navTo: function(term, direction) {
                 var lower = term.toLowerCase();
                 var entry = null;
                 for (var i = 0; i < this.terms.length; i++) {
                     if (this.terms[i].term.toLowerCase() === lower) { entry = this.terms[i]; break; }
                 }
-                if (!entry) return;
+                if (!entry) return this._termsJSON();
                 var marks = document.querySelectorAll('.__mods-hl-' + entry.slot);
-                if (marks.length === 0) return;
-                // Remove previous current indicator
+                if (marks.length === 0) return this._termsJSON();
                 var prev = document.querySelector('.__mods-hl-current');
                 if (prev) prev.classList.remove('__mods-hl-current');
-                // Advance index (wrap around)
-                if (entry.navIndex === undefined) entry.navIndex = 0;
-                else entry.navIndex = (entry.navIndex + 1) % marks.length;
+                if (entry.navIndex < 0) entry.navIndex = direction > 0 ? 0 : marks.length - 1;
+                else entry.navIndex = (entry.navIndex + direction + marks.length) % marks.length;
                 var target = marks[entry.navIndex];
                 target.classList.add('__mods-hl-current');
                 target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return this._termsJSON();
+            },
+
+            scrollToNext: function(term) { return this._navTo(term, 1); },
+            scrollToPrev: function(term) { return this._navTo(term, -1); },
+
+            preview: function(term) {
+                this._clearMarks('__mods-hl-preview');
+                if (!term || term.length < 2) return;
+                var content = document.getElementById('content');
+                var walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT, null);
+                var nodes = [];
+                while (walker.nextNode()) { nodes.push(walker.currentNode); }
+                var lower = term.toLowerCase();
+                var count = 0;
+                nodes.forEach(function(node) {
+                    if (count >= 200) return;
+                    if (node.parentNode && node.parentNode.closest && node.parentNode.closest('.__mods-highlight')) return;
+                    var text = node.textContent;
+                    var haystack = text.toLowerCase();
+                    var idx = haystack.indexOf(lower);
+                    if (idx === -1) return;
+                    var frag = document.createDocumentFragment();
+                    var pos = 0;
+                    while (idx !== -1 && count < 200) {
+                        frag.appendChild(document.createTextNode(text.substring(pos, idx)));
+                        var mark = document.createElement('mark');
+                        mark.className = '__mods-highlight __mods-hl-preview';
+                        mark.textContent = text.substring(idx, idx + term.length);
+                        frag.appendChild(mark);
+                        count++;
+                        pos = idx + term.length;
+                        idx = haystack.indexOf(lower, pos);
+                    }
+                    frag.appendChild(document.createTextNode(text.substring(pos)));
+                    node.parentNode.replaceChild(frag, node);
+                });
+            },
+
+            clearPreview: function() {
+                this._clearMarks('__mods-hl-preview');
+            },
+
+            _updateMarginMarks: function() {
+                var container = document.getElementById('__mods-margin-marks');
+                if (!container) {
+                    container = document.createElement('div');
+                    container.id = '__mods-margin-marks';
+                    document.body.appendChild(container);
+                }
+                container.innerHTML = '';
+                var docHeight = document.documentElement.scrollHeight;
+                if (docHeight <= 0) return;
+                for (var i = 0; i < this.terms.length; i++) {
+                    var marks = document.querySelectorAll('.__mods-hl-' + this.terms[i].slot);
+                    var color = ['#ffd33d','#58a6ff','#3fb950','#f0883e','#bc8cff'][this.terms[i].slot % 5];
+                    marks.forEach(function(m) {
+                        var rect = m.getBoundingClientRect();
+                        var y = (rect.top + window.scrollY) / docHeight * 100;
+                        var tick = document.createElement('div');
+                        tick.className = '__mods-margin-tick';
+                        tick.style.top = y + '%';
+                        tick.style.backgroundColor = color;
+                        container.appendChild(tick);
+                    });
+                }
+            },
+
+            _termsJSON: function() {
+                return JSON.stringify(this.terms.map(function(e) {
+                    return { term: e.term, slot: e.slot, count: e.count, current: e.navIndex + 1 };
+                }));
             },
 
             push: function() {
@@ -461,7 +561,7 @@ enum HTMLBuilder {
             },
 
             getTerms: function() {
-                return JSON.stringify(this.terms);
+                return this._termsJSON();
             }
         };
 

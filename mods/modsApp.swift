@@ -28,6 +28,8 @@ struct modsApp: App {
     @FocusedValue(\.zoomInAction) private var zoomInAction
     @FocusedValue(\.zoomOutAction) private var zoomOutAction
     @FocusedValue(\.zoomResetAction) private var zoomResetAction
+    @FocusedValue(\.findNextAction) private var findNextAction
+    @FocusedValue(\.findPrevAction) private var findPrevAction
 
     var body: some Scene {
         // Welcome window (no file)
@@ -67,6 +69,14 @@ struct modsApp: App {
                     findAction?()
                 }
                 .keyboardShortcut("f", modifiers: .command)
+                Button("Find Next") {
+                    findNextAction?()
+                }
+                .keyboardShortcut("g", modifiers: .command)
+                Button("Find Previous") {
+                    findPrevAction?()
+                }
+                .keyboardShortcut("g", modifiers: [.command, .shift])
                 Button("Clear All Highlights") {
                     clearHighlightsAction?()
                 }
@@ -198,8 +208,9 @@ struct FileView: View {
     @State private var searchText: String = ""
     @State private var isSearching: Bool = false
     @State private var search = SearchState()
-    @State private var activeSearchTerms: [(term: String, slot: Int, count: Int)] = []
+    @State private var activeSearchTerms: [(term: String, slot: Int, count: Int, current: Int)] = []
     @State private var searchStack: [[String]] = []
+    @State private var suggestionWords: [String] = []
     @State private var printTrigger: Int = 0
     @State private var exportPDFTrigger: Int = 0
     @State private var tocScrollTarget: String = ""
@@ -229,50 +240,14 @@ struct FileView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 0) {
-                if showTOC && !headings.isEmpty {
-                    TOCSidebar(headings: headings) { heading in
-                        tocScrollTarget = heading
-                    }
-                    Divider()
-                }
-                markdownWebView
-            }
-            if !markdown.isEmpty || !activeSearchTerms.isEmpty || !searchStack.isEmpty {
-                VStack(spacing: 0) {
-                    if !activeSearchTerms.isEmpty || !searchStack.isEmpty {
-                        searchTermsBar
-                    }
-                    if !markdown.isEmpty {
-                        statusBar
-                    }
-                }
-                .background(.bar)
-            }
-        }
-        .frame(minWidth: 400, minHeight: 300)
-        .navigationTitle(fileURL?.lastPathComponent ?? "mods")
-            .toolbar {
-                ToolbarItem(placement: .navigation) {
-                    Button {
-                        showTOC.toggle()
-                    } label: {
-                        Image(systemName: "list.bullet")
-                    }
-                    .help("Toggle Outline")
-                }
-            }
-            .searchable(text: $searchText, isPresented: $isSearching, placement: .toolbar, prompt: "Search and press Enter to highlight...")
-            .onSubmit(of: .search) {
-                guard searchText.count >= 2 && searchText.count <= 256 else { return }
-                search.text = searchText
-                search.addTrigger += 1
-                searchText = ""
-            }
-            .onChange(of: isSearching) {
-                if !isSearching { searchText = "" }
-            }
+        mainContent
+            .onOpenURL(perform: handleOpenURL)
+            .onDisappear { fileWatcher?.stop() }
+            .onAppear { loadURL(initialURL) }
+    }
+
+    private var mainContent: some View {
+        mainLayout
             .focusedSceneValue(\.openFileAction, openFile)
             .focusedSceneValue(\.findAction, performFind)
             .focusedSceneValue(\.printAction, performPrint)
@@ -282,17 +257,55 @@ struct FileView: View {
             .focusedSceneValue(\.zoomInAction, performZoomIn)
             .focusedSceneValue(\.zoomOutAction, performZoomOut)
             .focusedSceneValue(\.zoomResetAction, performZoomReset)
-            .onOpenURL(perform: handleOpenURL)
-            .onDisappear {
-                fileWatcher?.stop()
+            .focusedSceneValue(\.findNextAction, performFindNext)
+            .focusedSceneValue(\.findPrevAction, performFindPrev)
+    }
+
+    private var mainLayout: some View {
+        VStack(spacing: 0) {
+            contentArea
+            bottomBar
+        }
+        .frame(minWidth: 400, minHeight: 300)
+        .navigationTitle(fileURL?.lastPathComponent ?? "mods")
+        .toolbar { toolbarContent }
+        .searchable(text: $searchText, isPresented: $isSearching, placement: .toolbar, prompt: "Search...")
+        .onSubmit(of: .search, submitSearch)
+        .onChange(of: searchText) { onSearchTextChange() }
+        .onChange(of: isSearching) { onSearchDismiss() }
+        .onChange(of: markdown) { updateSuggestions() }
+    }
+
+    private var contentArea: some View {
+        HStack(spacing: 0) {
+            if showTOC && !headings.isEmpty {
+                TOCSidebar(headings: headings) { heading in
+                    tocScrollTarget = heading
+                }
+                Divider()
             }
-            .onAppear {
-                loadURL(initialURL)
+            markdownWebView
+        }
+    }
+
+    @ViewBuilder
+    private var bottomBar: some View {
+        if !markdown.isEmpty || !activeSearchTerms.isEmpty || !searchStack.isEmpty {
+            VStack(spacing: 0) {
+                if !activeSearchTerms.isEmpty || !searchStack.isEmpty {
+                    searchTermsBar
+                }
+                if !markdown.isEmpty {
+                    statusBar
+                }
             }
+            .background(.bar)
+        }
     }
 
     private var searchTermsBar: some View {
-        SearchTermsBar(terms: activeSearchTerms, stack: searchStack, onTap: { term in
+        SearchTermsBar(terms: activeSearchTerms, stack: searchStack, caseSensitive: $search.caseSensitive, wholeWord: $search.wholeWord, onTap: { term in
+            search.lastNavigatedTerm = term
             search.scrollToNextTerm = term
             search.scrollToNextTrigger += 1
         }, onRemove: { term in
@@ -346,6 +359,29 @@ struct FileView: View {
         MarkdownWebView(markdown: markdown, zoomLevel: zoomLevel, search: search, activeSearchTerms: $activeSearchTerms, searchStack: $searchStack, printTrigger: printTrigger, exportPDFTrigger: exportPDFTrigger, tocScrollTarget: tocScrollTarget)
     }
 
+    private var filteredSuggestions: [String] {
+        guard searchText.count >= 2 else { return [] }
+        return suggestionWords
+            .filter { $0.localizedCaseInsensitiveContains(searchText) }
+            .prefix(10)
+            .map { $0 }
+    }
+
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .navigation) {
+            Button { showTOC.toggle() } label: { Image(systemName: "list.bullet") }
+                .help("Toggle Outline")
+        }
+    }
+
+    private func submitSearch() {
+        guard searchText.count >= 2 && searchText.count <= 256 else { return }
+        search.text = searchText
+        search.addTrigger += 1
+        searchText = ""
+    }
+
     private func performFind() { isSearching.toggle() }
     private func performPrint() { printTrigger += 1 }
     private func performExportPDF() { exportPDFTrigger += 1 }
@@ -354,6 +390,37 @@ struct FileView: View {
     private func performZoomIn() { zoomLevel = min(5.0, zoomLevel + 0.1) }
     private func performZoomOut() { zoomLevel = max(0.25, zoomLevel - 0.1) }
     private func performZoomReset() { zoomLevel = 1.0 }
+    private func performFindNext() {
+        let term = search.lastNavigatedTerm.isEmpty ? activeSearchTerms.last?.term ?? "" : search.lastNavigatedTerm
+        guard !term.isEmpty else { return }
+        search.scrollToNextTerm = term
+        search.scrollToNextTrigger += 1
+    }
+    private func onSearchTextChange() {
+        search.previewText = searchText
+    }
+
+    private func onSearchDismiss() {
+        if !isSearching {
+            searchText = ""
+            search.previewText = ""
+        }
+    }
+
+    private func updateSuggestions() {
+        let text = markdown
+        Task.detached(priority: .utility) {
+            let words = WordExtractor.extractWords(from: text)
+            await MainActor.run { suggestionWords = words }
+        }
+    }
+
+    private func performFindPrev() {
+        let term = search.lastNavigatedTerm.isEmpty ? activeSearchTerms.last?.term ?? "" : search.lastNavigatedTerm
+        guard !term.isEmpty else { return }
+        search.scrollToPrevTerm = term
+        search.scrollToPrevTrigger += 1
+    }
 
     private func handleOpenURL(_ url: URL) {
         if url.scheme == "mods" {
@@ -442,6 +509,14 @@ struct ZoomResetActionKey: FocusedValueKey {
     typealias Value = () -> Void
 }
 
+struct FindNextActionKey: FocusedValueKey {
+    typealias Value = () -> Void
+}
+
+struct FindPrevActionKey: FocusedValueKey {
+    typealias Value = () -> Void
+}
+
 extension FocusedValues {
     var openFileAction: (() -> Void)? {
         get { self[OpenFileActionKey.self] }
@@ -479,6 +554,14 @@ extension FocusedValues {
         get { self[ZoomResetActionKey.self] }
         set { self[ZoomResetActionKey.self] = newValue }
     }
+    var findNextAction: (() -> Void)? {
+        get { self[FindNextActionKey.self] }
+        set { self[FindNextActionKey.self] = newValue }
+    }
+    var findPrevAction: (() -> Void)? {
+        get { self[FindPrevActionKey.self] }
+        set { self[FindPrevActionKey.self] = newValue }
+    }
 }
 
 /// Pill-style bar showing active search highlights with push/pop stack.
@@ -491,8 +574,10 @@ struct SearchTermsBar: View {
         Color(red: 0.74, green: 0.55, blue: 1.0),
     ]
 
-    let terms: [(term: String, slot: Int, count: Int)]
+    let terms: [(term: String, slot: Int, count: Int, current: Int)]
     let stack: [[String]]
+    @Binding var caseSensitive: Bool
+    @Binding var wholeWord: Bool
     let onTap: (String) -> Void
     let onRemove: (String) -> Void
     let onPush: () -> Void
@@ -511,8 +596,13 @@ struct SearchTermsBar: View {
                                 .frame(width: 8, height: 8)
                             Text(entry.term)
                                 .lineLimit(1)
-                            Text("\(entry.count)")
-                                .foregroundStyle(.secondary)
+                            if entry.current > 0 {
+                                Text("\(entry.current)/\(entry.count)")
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Text("\(entry.count)")
+                                    .foregroundStyle(.secondary)
+                            }
                             Button {
                                 onRemove(entry.term)
                             } label: {
@@ -553,6 +643,27 @@ struct SearchTermsBar: View {
                         .foregroundStyle(.secondary)
                         .help("Restore from stack")
                     }
+                    Divider().frame(height: 12)
+                    Button {
+                        caseSensitive.toggle()
+                    } label: {
+                        Text("Aa")
+                            .font(.system(size: 10, weight: caseSensitive ? .bold : .regular))
+                            .foregroundStyle(caseSensitive ? .primary : .tertiary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Case Sensitive")
+                    Button {
+                        wholeWord.toggle()
+                    } label: {
+                        Text("W")
+                            .font(.system(size: 10, weight: wholeWord ? .bold : .regular))
+                            .foregroundStyle(wholeWord ? .primary : .tertiary)
+                            .underline(wholeWord)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Whole Word")
+                    Divider().frame(height: 12)
                     Button("Clear All") {
                         onClearAll()
                     }
@@ -601,6 +712,37 @@ struct SearchTermsBar: View {
                 .padding(.vertical, 3)
             }
         }
+    }
+}
+
+/// Extracts words from markdown text for search suggestions.
+enum WordExtractor {
+    private static let stopWords: Set<String> = [
+        "the", "be", "to", "of", "and", "a", "in", "that", "have", "it",
+        "for", "not", "on", "with", "as", "you", "do", "at", "this", "but",
+        "by", "from", "they", "we", "or", "an", "will", "all", "would",
+        "there", "their", "what", "so", "up", "out", "if", "about", "who",
+        "which", "when", "can", "like", "no", "just", "him", "know", "take",
+        "into", "your", "some", "could", "them", "than", "then", "now",
+        "its", "over", "also", "after", "use", "how", "our", "any", "these",
+        "most", "is", "are", "was", "were", "been", "has", "had", "does",
+        "may", "should", "must", "very", "such", "more", "other", "only",
+    ]
+
+    static func extractWords(from markdown: String, limit: Int = 200) -> [String] {
+        var frequency: [String: Int] = [:]
+        markdown.enumerateSubstrings(in: markdown.startIndex..., options: .byWords) { word, _, _, _ in
+            guard let word else { return }
+            let lower = word.lowercased()
+            if lower.count < 3 && lower.allSatisfy({ $0.isASCII }) { return }
+            if stopWords.contains(lower) { return }
+            if lower.allSatisfy({ $0.isNumber }) { return }
+            frequency[lower, default: 0] += 1
+        }
+        return frequency
+            .sorted { ($0.value, $1.key) > ($1.value, $0.key) }
+            .prefix(limit)
+            .map { $0.key }
     }
 }
 

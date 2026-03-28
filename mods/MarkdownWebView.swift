@@ -9,17 +9,23 @@ struct SearchState {
     var clearTrigger: Int = 0
     var scrollToNextTerm: String = ""
     var scrollToNextTrigger: Int = 0
+    var scrollToPrevTerm: String = ""
+    var scrollToPrevTrigger: Int = 0
     var pushTrigger: Int = 0
     var popTrigger: Int = 0
     var restoreIndex: Int = 0
     var restoreTrigger: Int = 0
+    var caseSensitive: Bool = false
+    var wholeWord: Bool = false
+    var lastNavigatedTerm: String = ""
+    var previewText: String = ""
 }
 
 struct MarkdownWebView: NSViewRepresentable {
     let markdown: String
     let zoomLevel: Double
     let search: SearchState
-    @Binding var activeSearchTerms: [(term: String, slot: Int, count: Int)]
+    @Binding var activeSearchTerms: [(term: String, slot: Int, count: Int, current: Int)]
     @Binding var searchStack: [[String]]
     let printTrigger: Int
     let exportPDFTrigger: Int
@@ -83,6 +89,7 @@ struct MarkdownWebView: NSViewRepresentable {
         var lastHTML: String = ""
         var pendingPostLoadJS: String = ""
         var lastSearch = SearchState()
+        var lastPreviewText: String = ""
         var lastPrintTrigger: Int = 0
         var lastExportPDFTrigger: Int = 0
         var lastTOCTarget: String = ""
@@ -174,7 +181,9 @@ struct MarkdownWebView: NSViewRepresentable {
                 context.coordinator.lastSearch.addTrigger = search.addTrigger
                 if search.text.count >= 2 && search.text.count <= 256 {
                     let encoded = HTMLBuilder.jsonEncode(search.text)
-                    evaluateSearchJS("window.__modsSearch.add(\(encoded))", webView: webView)
+                    let cs = search.caseSensitive ? "true" : "false"
+                    let ww = search.wholeWord ? "true" : "false"
+                    evaluateSearchJS("window.__modsSearch.add(\(encoded),\(cs),\(ww))", webView: webView)
                 }
             }
             if context.coordinator.lastSearch.removeTrigger != search.removeTrigger {
@@ -189,7 +198,12 @@ struct MarkdownWebView: NSViewRepresentable {
             if context.coordinator.lastSearch.scrollToNextTrigger != search.scrollToNextTrigger {
                 context.coordinator.lastSearch.scrollToNextTrigger = search.scrollToNextTrigger
                 let encoded = HTMLBuilder.jsonEncode(search.scrollToNextTerm)
-                webView.evaluateJavaScript("window.__modsSearch.scrollToNext(\(encoded))")
+                evaluateSearchJS("window.__modsSearch.scrollToNext(\(encoded))", webView: webView)
+            }
+            if context.coordinator.lastSearch.scrollToPrevTrigger != search.scrollToPrevTrigger {
+                context.coordinator.lastSearch.scrollToPrevTrigger = search.scrollToPrevTrigger
+                let encoded = HTMLBuilder.jsonEncode(search.scrollToPrevTerm)
+                evaluateSearchJS("window.__modsSearch.scrollToPrev(\(encoded))", webView: webView)
             }
             if context.coordinator.lastSearch.pushTrigger != search.pushTrigger {
                 context.coordinator.lastSearch.pushTrigger = search.pushTrigger
@@ -202,6 +216,16 @@ struct MarkdownWebView: NSViewRepresentable {
             if context.coordinator.lastSearch.restoreTrigger != search.restoreTrigger {
                 context.coordinator.lastSearch.restoreTrigger = search.restoreTrigger
                 evaluateStackJS("window.__modsSearch.restore(\(search.restoreIndex))", webView: webView)
+            }
+            // Live preview while typing
+            if context.coordinator.lastPreviewText != search.previewText {
+                context.coordinator.lastPreviewText = search.previewText
+                if search.previewText.count >= 2 {
+                    let encoded = HTMLBuilder.jsonEncode(search.previewText)
+                    webView.evaluateJavaScript("window.__modsSearch.preview(\(encoded))")
+                } else {
+                    webView.evaluateJavaScript("window.__modsSearch.clearPreview()")
+                }
             }
         }
 
@@ -302,11 +326,12 @@ struct MarkdownWebView: NSViewRepresentable {
             }
             return
         }
-        let terms = array.compactMap { dict -> (term: String, slot: Int, count: Int)? in
+        let terms = array.compactMap { dict -> (term: String, slot: Int, count: Int, current: Int)? in
             guard let term = dict["term"] as? String,
                   let slot = dict["slot"] as? Int,
                   let count = dict["count"] as? Int else { return nil }
-            return (term, slot, count)
+            let current = dict["current"] as? Int ?? 0
+            return (term, slot, count, current)
         }
         DispatchQueue.main.async {
             withAnimation(.easeInOut(duration: 0.2)) { activeSearchTerms = terms }
