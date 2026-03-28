@@ -25,9 +25,31 @@ h6 { font-size: 0.85em; color: #656d76; }
 @media (prefers-color-scheme: dark) { h1, h2 { border-bottom-color: #3d444d; } h6 { color: #8b949e; } }
 
 p { margin-top: 0; margin-bottom: 16px; }
-a { color: #0969da; text-decoration: none; }
+a { color: #0969da; text-decoration: none; position: relative; }
 a:hover { text-decoration: underline; }
-@media (prefers-color-scheme: dark) { a { color: #4493f8; } }
+a[href]:hover::after {
+    content: attr(href);
+    position: absolute;
+    left: 0;
+    bottom: 100%;
+    margin-bottom: 4px;
+    padding: 4px 8px;
+    font-size: 11px;
+    font-weight: normal;
+    line-height: 1.4;
+    color: #e6edf3;
+    background: rgba(30, 30, 30, 0.95);
+    border-radius: 4px;
+    white-space: nowrap;
+    max-width: 500px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    z-index: 1000;
+    pointer-events: none;
+}
+@media (prefers-color-scheme: dark) { a { color: #4493f8; }
+    a[href]:hover::after { color: #e6edf3; background: rgba(60, 60, 60, 0.95); }
+}
 img { max-width: 100%; box-sizing: border-box; }
 
 code, tt { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace; font-size: 85%; }
