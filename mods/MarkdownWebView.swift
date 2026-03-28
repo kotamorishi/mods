@@ -101,7 +101,8 @@ struct MarkdownWebView: NSViewRepresentable {
     }
 
     func updateNSView(_ webView: WKWebView, context: Context) {
-        webView.pageZoom = zoomLevel
+        let fontPx = 16.0 * zoomLevel
+        webView.evaluateJavaScript("document.body.style.fontSize='\(fontPx)px'")
 
         if context.coordinator.currentMarkdown != markdown {
             context.coordinator.currentMarkdown = markdown

@@ -25,6 +25,9 @@ struct modsApp: App {
     @FocusedValue(\.exportPDFAction) private var exportPDFAction
     @FocusedValue(\.tocAction) private var tocAction
     @FocusedValue(\.clearHighlightsAction) private var clearHighlightsAction
+    @FocusedValue(\.zoomInAction) private var zoomInAction
+    @FocusedValue(\.zoomOutAction) private var zoomOutAction
+    @FocusedValue(\.zoomResetAction) private var zoomResetAction
 
     var body: some Scene {
         // Welcome window (no file)
@@ -67,6 +70,20 @@ struct modsApp: App {
                     tocAction?()
                 }
                 .keyboardShortcut("t", modifiers: [.command, .shift])
+            }
+            CommandGroup(after: .toolbar) {
+                Button("Zoom In") {
+                    zoomInAction?()
+                }
+                .keyboardShortcut("+", modifiers: .command)
+                Button("Zoom Out") {
+                    zoomOutAction?()
+                }
+                .keyboardShortcut("-", modifiers: .command)
+                Button("Actual Size") {
+                    zoomResetAction?()
+                }
+                .keyboardShortcut("0", modifiers: .command)
             }
             CommandGroup(replacing: .printItem) {
                 Button("Print...") {
@@ -215,56 +232,17 @@ struct FileView: View {
                     }
                     Divider()
                 }
-                MarkdownWebView(markdown: markdown, zoomLevel: zoomLevel, search: search, activeSearchTerms: $activeSearchTerms, searchStack: $searchStack, printTrigger: printTrigger, exportPDFTrigger: exportPDFTrigger, tocScrollTarget: tocScrollTarget)
+                markdownWebView
             }
-            if !activeSearchTerms.isEmpty || !searchStack.isEmpty {
-                SearchTermsBar(terms: activeSearchTerms, stack: searchStack, onTap: { term in
-                    search.scrollToNextTerm = term
-                    search.scrollToNextTrigger += 1
-                }, onRemove: { term in
-                    search.removeTerm = term
-                    search.removeTrigger += 1
-                }, onPush: {
-                    search.pushTrigger += 1
-                }, onPop: {
-                    search.popTrigger += 1
-                }, onRestore: { index in
-                    search.restoreIndex = index
-                    search.restoreTrigger += 1
-                }, onClearAll: {
-                    search.clearTrigger += 1
-                })
-                .transition(.move(edge: .top).combined(with: .opacity))
-            }
-            if !markdown.isEmpty {
-                HStack(spacing: 8) {
-                    Text("\(wordCount) words")
-                    Text("·")
-                    Text(readingTime)
-                    Spacer()
-                    if let fileURL {
-                        Text(fileURL.deletingLastPathComponent().path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
-                            .lineLimit(1)
-                            .truncationMode(.head)
+            if !markdown.isEmpty || !activeSearchTerms.isEmpty || !searchStack.isEmpty {
+                VStack(spacing: 0) {
+                    if !activeSearchTerms.isEmpty || !searchStack.isEmpty {
+                        searchTermsBar
                     }
-                    Divider().frame(height: 12)
-                    Image(systemName: "minus.magnifyingglass")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
-                    Slider(value: $zoomLevel, in: 0.25...5.0, step: 0.05)
-                        .frame(width: 100)
-                    Image(systemName: "plus.magnifyingglass")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
-                    Text("\(Int(zoomLevel * 100))%")
-                        .monospacedDigit()
-                        .frame(minWidth: 32, alignment: .trailing)
-                        .onTapGesture { zoomLevel = 1.0 }
+                    if !markdown.isEmpty {
+                        statusBar
+                    }
                 }
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 4)
                 .background(.bar)
             }
         }
@@ -296,21 +274,11 @@ struct FileView: View {
             .focusedSceneValue(\.exportPDFAction, performExportPDF)
             .focusedSceneValue(\.tocAction, toggleTOC)
             .focusedSceneValue(\.clearHighlightsAction, clearHighlights)
-            .onDrop(of: [.fileURL], isTargeted: nil) { providers in
-                guard let provider = providers.first else { return false }
-                _ = provider.loadObject(ofClass: URL.self) { url, _ in
-                    if let url, URLValidator.isSafe(url) {
-                        DispatchQueue.main.async {
-                            openWindow(value: url)
-                        }
-                    }
-                }
-                return true
-            }
-            .onOpenURL { url in
-                let resolved = url.scheme == "mods" ? (URLValidator.resolve(modsURL: url) ?? url) : url
-                openWindow(value: resolved)
-            }
+            .focusedSceneValue(\.zoomInAction, performZoomIn)
+            .focusedSceneValue(\.zoomOutAction, performZoomOut)
+            .focusedSceneValue(\.zoomResetAction, performZoomReset)
+            .onDrop(of: [.fileURL], isTargeted: nil, perform: handleDrop)
+            .onOpenURL(perform: handleOpenURL)
             .onDisappear {
                 fileWatcher?.stop()
             }
@@ -319,11 +287,87 @@ struct FileView: View {
             }
     }
 
+    private var searchTermsBar: some View {
+        SearchTermsBar(terms: activeSearchTerms, stack: searchStack, onTap: { term in
+            search.scrollToNextTerm = term
+            search.scrollToNextTrigger += 1
+        }, onRemove: { term in
+            search.removeTerm = term
+            search.removeTrigger += 1
+        }, onPush: {
+            search.pushTrigger += 1
+        }, onPop: {
+            search.popTrigger += 1
+        }, onRestore: { index in
+            search.restoreIndex = index
+            search.restoreTrigger += 1
+        }, onClearAll: {
+            search.clearTrigger += 1
+        })
+        .transition(.move(edge: .top).combined(with: .opacity))
+    }
+
+    private var statusBar: some View {
+        HStack(spacing: 8) {
+            Text("\(wordCount) words")
+            Text("·")
+            Text(readingTime)
+            Spacer()
+            if let fileURL {
+                Text(fileURL.deletingLastPathComponent().path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
+                    .lineLimit(1)
+                    .truncationMode(.head)
+            }
+            Divider().frame(height: 12)
+            Image(systemName: "minus.magnifyingglass")
+                .font(.system(size: 10))
+                .foregroundStyle(.tertiary)
+            CompactSlider(value: $zoomLevel, in: 0.25...5.0, step: 0.05)
+                .frame(width: 100)
+            Image(systemName: "plus.magnifyingglass")
+                .font(.system(size: 10))
+                .foregroundStyle(.tertiary)
+            Text("\(Int(zoomLevel * 100))%")
+                .monospacedDigit()
+                .frame(minWidth: 32, alignment: .trailing)
+                .onTapGesture { zoomLevel = 1.0 }
+        }
+        .font(.system(size: 11))
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 4)
+    }
+
+    private var markdownWebView: some View {
+        MarkdownWebView(markdown: markdown, zoomLevel: zoomLevel, search: search, activeSearchTerms: $activeSearchTerms, searchStack: $searchStack, printTrigger: printTrigger, exportPDFTrigger: exportPDFTrigger, tocScrollTarget: tocScrollTarget)
+    }
+
     private func performFind() { isSearching.toggle() }
     private func performPrint() { printTrigger += 1 }
     private func performExportPDF() { exportPDFTrigger += 1 }
     private func toggleTOC() { showTOC.toggle() }
     private func clearHighlights() { search.clearTrigger += 1 }
+    private func performZoomIn() { zoomLevel = min(5.0, zoomLevel + 0.1) }
+    private func performZoomOut() { zoomLevel = max(0.25, zoomLevel - 0.1) }
+    private func performZoomReset() { zoomLevel = 1.0 }
+
+    private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
+        guard let provider = providers.first else { return false }
+        _ = provider.loadObject(ofClass: URL.self) { url, _ in
+            if let url, URLValidator.isSafe(url) {
+                DispatchQueue.main.async { openWindow(value: url) }
+            }
+        }
+        return true
+    }
+
+    private func handleOpenURL(_ url: URL) {
+        if url.scheme == "mods" {
+            openWindow(value: URLValidator.resolve(modsURL: url) ?? url)
+        } else {
+            openWindow(value: url)
+        }
+    }
 
     private func openFile() {
         for url in FilePickerHelper.runOpenPanel() {
@@ -387,6 +431,18 @@ struct ClearHighlightsActionKey: FocusedValueKey {
     typealias Value = () -> Void
 }
 
+struct ZoomInActionKey: FocusedValueKey {
+    typealias Value = () -> Void
+}
+
+struct ZoomOutActionKey: FocusedValueKey {
+    typealias Value = () -> Void
+}
+
+struct ZoomResetActionKey: FocusedValueKey {
+    typealias Value = () -> Void
+}
+
 extension FocusedValues {
     var openFileAction: (() -> Void)? {
         get { self[OpenFileActionKey.self] }
@@ -411,6 +467,18 @@ extension FocusedValues {
     var clearHighlightsAction: (() -> Void)? {
         get { self[ClearHighlightsActionKey.self] }
         set { self[ClearHighlightsActionKey.self] = newValue }
+    }
+    var zoomInAction: (() -> Void)? {
+        get { self[ZoomInActionKey.self] }
+        set { self[ZoomInActionKey.self] = newValue }
+    }
+    var zoomOutAction: (() -> Void)? {
+        get { self[ZoomOutActionKey.self] }
+        set { self[ZoomOutActionKey.self] = newValue }
+    }
+    var zoomResetAction: (() -> Void)? {
+        get { self[ZoomResetActionKey.self] }
+        set { self[ZoomResetActionKey.self] = newValue }
     }
 }
 
@@ -534,7 +602,54 @@ struct SearchTermsBar: View {
                 .padding(.vertical, 3)
             }
         }
-        .background(.bar)
+    }
+}
+
+/// Custom compact slider without system rendering artifacts.
+struct CompactSlider: View {
+    @Binding var value: Double
+    let range: ClosedRange<Double>
+    let step: Double
+
+    init(value: Binding<Double>, in range: ClosedRange<Double>, step: Double = 0.05) {
+        self._value = value
+        self.range = range
+        self.step = step
+    }
+
+    var body: some View {
+        GeometryReader { geo in
+            let fraction = (value - range.lowerBound) / (range.upperBound - range.lowerBound)
+            let thumbX = fraction * geo.size.width
+
+            ZStack(alignment: .leading) {
+                // Track
+                Capsule()
+                    .fill(.quaternary)
+                    .frame(height: 4)
+                // Filled track
+                Capsule()
+                    .fill(.primary.opacity(0.5))
+                    .frame(width: max(4, thumbX), height: 4)
+                // Thumb
+                Circle()
+                    .fill(.primary.opacity(0.85))
+                    .frame(width: 12, height: 12)
+                    .offset(x: thumbX - 6)
+            }
+            .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { drag in
+                        let fraction = max(0, min(1, drag.location.x / geo.size.width))
+                        let raw = range.lowerBound + fraction * (range.upperBound - range.lowerBound)
+                        value = (raw / step).rounded() * step
+                        value = max(range.lowerBound, min(range.upperBound, value))
+                    }
+            )
+        }
+        .frame(height: 14)
     }
 }
 
