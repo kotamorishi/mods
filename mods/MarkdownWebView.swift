@@ -100,7 +100,7 @@ struct MarkdownWebView: NSViewRepresentable {
             context.coordinator.currentMarkdown = markdown
 
             if context.coordinator.isInitialLoadDone && !markdown.isEmpty {
-                updateContentViaJS(webView: webView)
+                updateContentViaJS(webView: webView, restoreHighlights: !activeSearchTerms.isEmpty)
             } else if !markdown.isEmpty {
                 // First real content load — use loadHTMLString for full page setup
                 let bodyHTML = MarkdownRenderer.renderToHTML(markdown)
@@ -221,7 +221,7 @@ struct MarkdownWebView: NSViewRepresentable {
         DispatchQueue.main.async { activeSearchTerms = terms }
     }
 
-    private func updateContentViaJS(webView: WKWebView) {
+    private func updateContentViaJS(webView: WKWebView, restoreHighlights: Bool = false) {
         let bodyHTML = MarkdownRenderer.renderToHTML(markdown)
 
         // Save the nearest visible heading before updating content,
@@ -264,6 +264,12 @@ struct MarkdownWebView: NSViewRepresentable {
         })();
         """
 
-        webView.evaluateJavaScript(js)
+        webView.evaluateJavaScript(js) { _, _ in
+            if restoreHighlights {
+                webView.evaluateJavaScript("window.__modsSearch._rebuildAll(); window.__modsSearch.getTerms()") { result, _ in
+                    if let json = result as? String { self.updateActiveTerms(from: json) }
+                }
+            }
+        }
     }
 }
