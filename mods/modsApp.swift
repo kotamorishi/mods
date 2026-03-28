@@ -270,6 +270,11 @@ struct FileView: View {
         .navigationTitle(fileURL?.lastPathComponent ?? "mods")
         .toolbar { toolbarContent }
         .searchable(text: $searchText, isPresented: $isSearching, placement: .toolbar, prompt: "Search...")
+        .searchSuggestions {
+            ForEach(filteredSuggestions, id: \.self) { word in
+                Text(word).searchCompletion(word)
+            }
+        }
         .onSubmit(of: .search, submitSearch)
         .onChange(of: searchText) { onSearchTextChange() }
         .onChange(of: isSearching) { onSearchDismiss() }
