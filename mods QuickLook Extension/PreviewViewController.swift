@@ -3,7 +3,7 @@ import QuickLookUI
 import WebKit
 
 @MainActor
-class PreviewViewController: NSViewController, QLPreviewingController, WKNavigationDelegate {
+class PreviewViewController: NSViewController, QLPreviewingController, WKNavigationDelegate, WKScriptMessageHandler {
     var webView: WKWebView!
     var pendingPostLoadJS: String = ""
 
@@ -11,7 +11,25 @@ class PreviewViewController: NSViewController, QLPreviewingController, WKNavigat
         webView = WKWebView(frame: .zero, configuration: HTMLBuilder.webViewConfiguration())
         webView.autoresizingMask = [.width, .height]
         webView.navigationDelegate = self
+        webView.configuration.userContentController.add(self, name: "loadImage")
         self.view = webView
+    }
+
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard message.name == "loadImage",
+              let body = message.body as? [String: String],
+              let id = body["id"],
+              let src = body["src"] else { return }
+        let alert = NSAlert()
+        alert.messageText = "Load External Image"
+        alert.informativeText = src
+        alert.addButton(withTitle: "Load")
+        alert.addButton(withTitle: "Cancel")
+        alert.alertStyle = .informational
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let jsId = HTMLBuilder.jsonEncode(id)
+        let jsSrc = HTMLBuilder.jsonEncode(src)
+        webView.evaluateJavaScript("window.__modsLoadImage(\(jsId), \(jsSrc))")
     }
 
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction) async -> WKNavigationActionPolicy {
