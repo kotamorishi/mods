@@ -282,7 +282,6 @@ struct FileView: View {
             .focusedSceneValue(\.zoomInAction, performZoomIn)
             .focusedSceneValue(\.zoomOutAction, performZoomOut)
             .focusedSceneValue(\.zoomResetAction, performZoomReset)
-            .onDrop(of: [.fileURL], isTargeted: nil, perform: handleDrop)
             .onOpenURL(perform: handleOpenURL)
             .onDisappear {
                 fileWatcher?.stop()
@@ -355,16 +354,6 @@ struct FileView: View {
     private func performZoomIn() { zoomLevel = min(5.0, zoomLevel + 0.1) }
     private func performZoomOut() { zoomLevel = max(0.25, zoomLevel - 0.1) }
     private func performZoomReset() { zoomLevel = 1.0 }
-
-    private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
-        guard let provider = providers.first else { return false }
-        _ = provider.loadObject(ofClass: URL.self) { url, _ in
-            if let url, URLValidator.isSafe(url) {
-                DispatchQueue.main.async { openWindow(value: url) }
-            }
-        }
-        return true
-    }
 
     private func handleOpenURL(_ url: URL) {
         if url.scheme == "mods" {
