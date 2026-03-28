@@ -281,7 +281,6 @@ struct FileView: View {
             .onOpenURL(perform: handleOpenURL)
             .onDisappear {
                 fileWatcher?.stop()
-                fileURL?.stopAccessingSecurityScopedResource()
             }
             .onAppear {
                 loadURL(initialURL)
@@ -382,26 +381,23 @@ struct FileView: View {
     private func loadURL(_ url: URL) {
         self.fileURL = url
         NSDocumentController.shared.noteNewRecentDocumentURL(url)
-        let hasAccess = url.startAccessingSecurityScopedResource()
+        _ = url.startAccessingSecurityScopedResource()
+        defer { url.stopAccessingSecurityScopedResource() }
 
         if let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
            let size = attrs[.size] as? UInt64,
            size > Self.maxFileSize {
             let sizeMB = String(format: "%.1f", Double(size) / 1_048_576)
             self.markdown = "# File too large\n\nThis file is \(sizeMB) MB. Maximum supported size is 10 MB."
-            if hasAccess { url.stopAccessingSecurityScopedResource() }
             return
         }
 
         self.markdown = HTMLBuilder.readFileWithFallback(url: url)
-        // Keep security-scoped access alive for FileWatcher; release on stop.
-        startWatching(url, securityScoped: hasAccess)
+        startWatching(url)
     }
 
-    private func startWatching(_ url: URL, securityScoped: Bool) {
+    private func startWatching(_ url: URL) {
         fileWatcher?.stop()
-        if securityScoped { fileURL?.stopAccessingSecurityScopedResource() }
-        if securityScoped { _ = url.startAccessingSecurityScopedResource() }
         fileWatcher = FileWatcher(url: url) {
             // Re-check file size on reload to prevent OOM
             if let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
