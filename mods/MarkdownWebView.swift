@@ -90,6 +90,7 @@ struct MarkdownWebView: NSViewRepresentable {
         var pendingPostLoadJS: String = ""
         var lastSearch = SearchState()
         var lastPreviewText: String = ""
+        var lastZoomLevel: Double = 1.0
         var lastPrintTrigger: Int = 0
         var lastExportPDFTrigger: Int = 0
         var lastTOCTarget: String = ""
@@ -156,8 +157,11 @@ struct MarkdownWebView: NSViewRepresentable {
     }
 
     func updateNSView(_ webView: WKWebView, context: Context) {
-        let fontPx = 16.0 * zoomLevel
-        webView.evaluateJavaScript("document.body.style.fontSize='\(fontPx)px'")
+        if context.coordinator.lastZoomLevel != zoomLevel {
+            context.coordinator.lastZoomLevel = zoomLevel
+            let fontPx = 16.0 * zoomLevel
+            webView.evaluateJavaScript("document.body.style.fontSize='\(fontPx)px'")
+        }
 
         if context.coordinator.currentMarkdown != markdown {
             context.coordinator.currentMarkdown = markdown
@@ -232,7 +236,9 @@ struct MarkdownWebView: NSViewRepresentable {
         // Print
         if context.coordinator.lastPrintTrigger != printTrigger {
             context.coordinator.lastPrintTrigger = printTrigger
-            webView.printOperation(with: .shared).runModal(for: webView.window ?? NSWindow(), delegate: nil, didRun: nil, contextInfo: nil)
+            if let window = webView.window {
+                webView.printOperation(with: .shared).runModal(for: window, delegate: nil, didRun: nil, contextInfo: nil)
+            }
         }
 
         // Export PDF
@@ -264,7 +270,7 @@ struct MarkdownWebView: NSViewRepresentable {
     private func exportPDF(webView: WKWebView) {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.pdf]
-        panel.nameFieldStringValue = (markdown.isEmpty ? "document" : URL(fileURLWithPath: "untitled").deletingPathExtension().lastPathComponent) + ".pdf"
+        panel.nameFieldStringValue = "document.pdf"
         // Try to use the source filename
         if let name = webView.title, !name.isEmpty {
             panel.nameFieldStringValue = name.replacingOccurrences(of: ".md", with: "") + ".pdf"

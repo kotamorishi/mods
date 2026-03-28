@@ -234,11 +234,6 @@ struct FileView: View {
         markdown.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
     }
 
-    private var readingTime: String {
-        let minutes = max(1, wordCount / 200)
-        return "\(minutes) min read"
-    }
-
     var body: some View {
         mainContent
             .onOpenURL(perform: handleOpenURL)
@@ -332,8 +327,6 @@ struct FileView: View {
     private var statusBar: some View {
         HStack(spacing: 8) {
             Text("\(wordCount) words")
-            Text("·")
-            Text(readingTime)
             Spacer()
             if let fileURL {
                 Text(fileURL.deletingLastPathComponent().path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))

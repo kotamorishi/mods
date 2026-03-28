@@ -175,8 +175,6 @@ struct MarkdownRenderer {
         return map
     }()
 
-    private static func loadEmojiMap() -> [String: String] { emojiMap }
-
     // Match :shortcode: but not inside HTML tags or <code> blocks
     private static let emojiRegex = try! NSRegularExpression(
         pattern: ":([a-z0-9_+\\-]+):",
@@ -195,7 +193,7 @@ struct MarkdownRenderer {
         // Fast pre-check: skip emoji map loading if no :shortcode: pattern exists
         let range = NSRange(html.startIndex..., in: html)
         guard emojiQuickCheck.firstMatch(in: html, range: range) != nil else { return html }
-        let map = loadEmojiMap()
+        let map = emojiMap
         if map.isEmpty { return html }
 
         // Strip out <code>...</code> and HTML tags to find safe replacement zones
