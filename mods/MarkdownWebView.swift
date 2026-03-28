@@ -209,7 +209,9 @@ struct MarkdownWebView: NSViewRepresentable {
     private func updateActiveTerms(from json: String) {
         guard let data = json.data(using: .utf8),
               let array = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-            DispatchQueue.main.async { activeSearchTerms = [] }
+            DispatchQueue.main.async {
+                withAnimation(.easeInOut(duration: 0.2)) { activeSearchTerms = [] }
+            }
             return
         }
         let terms = array.compactMap { dict -> (term: String, slot: Int, count: Int)? in
@@ -218,7 +220,9 @@ struct MarkdownWebView: NSViewRepresentable {
                   let count = dict["count"] as? Int else { return nil }
             return (term, slot, count)
         }
-        DispatchQueue.main.async { activeSearchTerms = terms }
+        DispatchQueue.main.async {
+            withAnimation(.easeInOut(duration: 0.2)) { activeSearchTerms = terms }
+        }
     }
 
     private func updateContentViaJS(webView: WKWebView, restoreHighlights: Bool = false) {

@@ -221,6 +221,7 @@ struct FileView: View {
                 }, onClearAll: {
                     searchClearTrigger += 1
                 })
+                .transition(.move(edge: .top).combined(with: .opacity))
             }
             if !markdown.isEmpty {
                 HStack {
@@ -437,6 +438,7 @@ struct SearchTermsBar: View {
                 .padding(.horizontal, 8)
                 .padding(.vertical, 3)
                 .background(.quaternary, in: Capsule())
+                .transition(.scale.combined(with: .opacity))
             }
             Spacer()
             Button("Clear All") {
