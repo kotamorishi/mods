@@ -7,6 +7,7 @@ struct MarkdownWebView: NSViewRepresentable {
     let searchText: String
     let searchAddTrigger: Int
     let searchRemoveTerm: String
+    let searchRemoveTrigger: Int
     let searchClearTrigger: Int
     @Binding var activeSearchTerms: [(term: String, slot: Int, count: Int)]
     let printTrigger: Int
@@ -37,7 +38,7 @@ struct MarkdownWebView: NSViewRepresentable {
         var pendingPostLoadJS: String = ""
         var lastSearchText: String = ""
         var lastSearchAddTrigger: Int = 0
-        var lastSearchRemoveTerm: String = ""
+        var lastSearchRemoveTrigger: Int = 0
         var lastSearchClearTrigger: Int = 0
         var lastPrintTrigger: Int = 0
         var lastExportPDFTrigger: Int = 0
@@ -123,8 +124,8 @@ struct MarkdownWebView: NSViewRepresentable {
         }
 
         // Search: remove term
-        if context.coordinator.lastSearchRemoveTerm != searchRemoveTerm && !searchRemoveTerm.isEmpty {
-            context.coordinator.lastSearchRemoveTerm = searchRemoveTerm
+        if context.coordinator.lastSearchRemoveTrigger != searchRemoveTrigger {
+            context.coordinator.lastSearchRemoveTrigger = searchRemoveTrigger
             let encoded = HTMLBuilder.jsonEncode(searchRemoveTerm)
             webView.evaluateJavaScript("window.__modsSearch.remove(\(encoded))") { result, _ in
                 if let json = result as? String { updateActiveTerms(from: json) }

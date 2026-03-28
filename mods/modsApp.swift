@@ -172,6 +172,7 @@ struct FileView: View {
     @State private var isSearching: Bool = false
     @State private var searchAddTrigger: Int = 0
     @State private var searchRemoveTerm: String = ""
+    @State private var searchRemoveTrigger: Int = 0
     @State private var searchClearTrigger: Int = 0
     @State private var activeSearchTerms: [(term: String, slot: Int, count: Int)] = []
     @State private var printTrigger: Int = 0
@@ -211,11 +212,12 @@ struct FileView: View {
                     }
                     Divider()
                 }
-                MarkdownWebView(markdown: markdown, zoomLevel: zoomLevel, searchText: searchText, searchAddTrigger: searchAddTrigger, searchRemoveTerm: searchRemoveTerm, searchClearTrigger: searchClearTrigger, activeSearchTerms: $activeSearchTerms, printTrigger: printTrigger, exportPDFTrigger: exportPDFTrigger, tocScrollTarget: tocScrollTarget)
+                MarkdownWebView(markdown: markdown, zoomLevel: zoomLevel, searchText: searchText, searchAddTrigger: searchAddTrigger, searchRemoveTerm: searchRemoveTerm, searchRemoveTrigger: searchRemoveTrigger, searchClearTrigger: searchClearTrigger, activeSearchTerms: $activeSearchTerms, printTrigger: printTrigger, exportPDFTrigger: exportPDFTrigger, tocScrollTarget: tocScrollTarget)
             }
             if !activeSearchTerms.isEmpty {
                 SearchTermsBar(terms: activeSearchTerms, onRemove: { term in
                     searchRemoveTerm = term
+                    searchRemoveTrigger += 1
                 }, onClearAll: {
                     searchClearTrigger += 1
                 })
