@@ -373,6 +373,11 @@ enum HTMLBuilder {
                 var entry = { term: term, slot: slot, count: 0 };
                 this.terms.push(entry);
                 this._rebuildAll();
+                // Remove if no matches found
+                if (entry.count === 0) {
+                    this.terms = this.terms.filter(function(e) { return e !== entry; });
+                    return JSON.stringify(this.terms);
+                }
                 var first = document.querySelector('.__mods-hl-' + slot);
                 if (first) first.scrollIntoView({ block: 'center' });
                 return JSON.stringify(this.terms);
