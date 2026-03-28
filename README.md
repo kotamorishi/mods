@@ -2,9 +2,13 @@
 
 A fast, lightweight macOS native markdown viewer. View-only — no editing.
 
-[![mods app icon](icon.png)](https://apps.apple.com/app/mods-markdown-viewer/id6760838590)
-
-[Download on the Mac App Store](https://apps.apple.com/app/mods-markdown-viewer/id6760838590)
+<p align="center">
+  <a href="https://apps.apple.com/app/mods-markdown-viewer/id6760838590">
+    <img src="icon.png" width="128" alt="mods app icon">
+  </a>
+  <br>
+  <a href="https://apps.apple.com/app/mods-markdown-viewer/id6760838590">Download on the Mac App Store</a>
+</p>
 
 ### Install with Homebrew
 
