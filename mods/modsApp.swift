@@ -163,7 +163,7 @@ enum URLValidator {
 
     /// Resolve a mods:// URL to a safe file URL (strict: markdown only).
     static func resolve(modsURL url: URL) -> URL? {
-        let fileURL = URL(fileURLWithPath: url.path).standardizedFileURL
+        let fileURL = URL(fileURLWithPath: url.path).standardizedFileURL.resolvingSymlinksInPath()
         guard markdownExtensions.contains(fileURL.pathExtension.lowercased()) else {
             return nil
         }
@@ -281,6 +281,7 @@ struct FileView: View {
             .onOpenURL(perform: handleOpenURL)
             .onDisappear {
                 fileWatcher?.stop()
+                fileURL?.stopAccessingSecurityScopedResource()
             }
             .onAppear {
                 loadURL(initialURL)
@@ -363,7 +364,8 @@ struct FileView: View {
 
     private func handleOpenURL(_ url: URL) {
         if url.scheme == "mods" {
-            openWindow(value: URLValidator.resolve(modsURL: url) ?? url)
+            guard let resolved = URLValidator.resolve(modsURL: url) else { return }
+            openWindow(value: resolved)
         } else {
             openWindow(value: url)
         }
@@ -380,24 +382,31 @@ struct FileView: View {
     private func loadURL(_ url: URL) {
         self.fileURL = url
         NSDocumentController.shared.noteNewRecentDocumentURL(url)
-        _ = url.startAccessingSecurityScopedResource()
-        defer { url.stopAccessingSecurityScopedResource() }
+        let hasAccess = url.startAccessingSecurityScopedResource()
 
         if let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
            let size = attrs[.size] as? UInt64,
            size > Self.maxFileSize {
             let sizeMB = String(format: "%.1f", Double(size) / 1_048_576)
             self.markdown = "# File too large\n\nThis file is \(sizeMB) MB. Maximum supported size is 10 MB."
+            if hasAccess { url.stopAccessingSecurityScopedResource() }
             return
         }
 
         self.markdown = HTMLBuilder.readFileWithFallback(url: url)
-        startWatching(url)
+        // Keep security-scoped access alive for FileWatcher; release on stop.
+        startWatching(url, securityScoped: hasAccess)
     }
 
-    private func startWatching(_ url: URL) {
+    private func startWatching(_ url: URL, securityScoped: Bool) {
         fileWatcher?.stop()
+        if securityScoped { fileURL?.stopAccessingSecurityScopedResource() }
+        if securityScoped { _ = url.startAccessingSecurityScopedResource() }
         fileWatcher = FileWatcher(url: url) {
+            // Re-check file size on reload to prevent OOM
+            if let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
+               let size = attrs[.size] as? UInt64,
+               size > Self.maxFileSize { return }
             let newContent = HTMLBuilder.readFileWithFallback(url: url)
             if newContent != self.markdown {
                 self.markdown = newContent

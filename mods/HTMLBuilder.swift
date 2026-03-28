@@ -135,7 +135,7 @@ enum HTMLBuilder {
         <html>
         <head>
         <meta charset="utf-8">
-        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src https: http: data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none';">
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'none'; img-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none';">
         <meta name="referrer" content="no-referrer">
         \(styleBlock())
         </head>
@@ -242,7 +242,7 @@ enum HTMLBuilder {
             el.addEventListener('keydown', function(e) { if (e.key === 'Enter') el.click(); });
             el.addEventListener('click', function() {
                 var src = el.getAttribute('data-img-src');
-                if (src) {
+                if (src && (src.startsWith('https://') || src.startsWith('http://'))) {
                     var img = document.createElement('img');
                     img.src = src;
                     img.style.maxWidth = '100%';
@@ -503,8 +503,10 @@ enum HTMLBuilder {
                 .replacingOccurrences(of: "\n", with: "\\n")
                 .replacingOccurrences(of: "\r", with: "\\r")
                 .replacingOccurrences(of: "\t", with: "\\t")
+                .replacingOccurrences(of: "\0", with: "\\0")
                 .replacingOccurrences(of: "\u{2028}", with: "\\u2028")
                 .replacingOccurrences(of: "\u{2029}", with: "\\u2029")
+                .replacingOccurrences(of: "</", with: "<\\/")
             return "\"\(escaped)\""
         }
         return String(array.dropFirst().dropLast())
