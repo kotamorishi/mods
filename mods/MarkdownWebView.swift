@@ -25,7 +25,7 @@ struct MarkdownWebView: NSViewRepresentable {
     let exportPDFTrigger: Int
     let tocScrollTarget: String
 
-    /// WKWebView subclass that filters irrelevant context menu items and disables drop.
+    /// WKWebView subclass that filters irrelevant context menu items.
     class ModsWebView: WKWebView {
         override func willOpenMenu(_ menu: NSMenu, with event: NSEvent) {
             let removeSelectors: Set<String> = [
@@ -40,10 +40,6 @@ struct MarkdownWebView: NSViewRepresentable {
             }
             super.willOpenMenu(menu, with: event)
         }
-
-        // Disable WKWebView's built-in drop handling so SwiftUI .onDrop receives it.
-        override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation { [] }
-        override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool { false }
     }
 
     class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
@@ -100,7 +96,12 @@ struct MarkdownWebView: NSViewRepresentable {
         webView.autoresizingMask = [.width, .height]
         webView.navigationDelegate = context.coordinator
         webView.uiDelegate = context.coordinator
-        webView.configuration.userContentController.add(context.coordinator, name: "loadImage")
+        // Unregister drop types so SwiftUI .onDrop receives file drops
+        webView.unregisterDraggedTypes()
+        // Remove existing handler (shared controller) before adding to avoid duplicate crash
+        let controller = webView.configuration.userContentController
+        controller.removeScriptMessageHandler(forName: "loadImage")
+        controller.add(context.coordinator, name: "loadImage")
         context.coordinator.currentMarkdown = markdown
 
         if !markdown.isEmpty {
