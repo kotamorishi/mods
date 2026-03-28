@@ -1,58 +1,88 @@
 # mods — Continuous Improvement Loop
 
-Run this loop to autonomously identify issues, implement improvements, and verify results.
-**Current focus: Security and Stability only. No new features.**
+Run this loop to implement the multi-highlight search feature.
+**Current focus: Enhanced search with persistent multi-color highlights.**
+
+## Goal
+
+Replace the current single-search Cmd+F with a developer-focused multi-highlight search:
+- Each search term gets its own highlight color (up to 5 concurrent highlights)
+- Highlights persist — searching a new term adds a new color layer, not replaces
+- Each highlight can be individually dismissed (X button per term)
+- UI is minimal, polished, developer-oriented (think VS Code / IDE search)
+
+## Design
+
+**Highlight colors** (5 slots, assigned in order, recycled when full):
+1. Yellow (`#ffd33d80`) 2. Blue (`#58a6ff80`) 3. Green (`#3fb95080`) 4. Orange (`#f0883e80`) 5. Purple (`#bc8cff80`)
+
+**UI layout** — compact toolbar-style bar:
+```
+[Search field] [Add ⏎] [match count]  | [term1 ×] [term2 ×] [term3 ×] | [Clear All]
+```
+
+**Keyboard shortcuts:**
+- `Cmd+F` — focus search field
+- `Enter` — add current term as new highlight
+- `Escape` — close search bar (highlights remain)
 
 ## Process
 
-### 1. Identify
+### 1. Propose
 
-Analyze the current codebase for security vulnerabilities and stability issues.
-Pick ONE specific, actionable item from these areas:
-
-**Security:**
-- HTML sanitization gaps (new bypass vectors, edge cases)
-- CSP policy completeness
-- WKWebView attack surface (navigation, JS injection, resource loading)
-- File access beyond sandbox boundaries
-- Input validation (malformed URLs, paths, file contents)
-- Dependency audit (cmark-gfm, highlight.js, KaTeX, Mermaid versions)
-- Entitlements minimization
-
-**Stability:**
-- Crash scenarios (nil handling, force unwraps, edge cases)
-- Memory leaks (WKWebView, FileWatcher, cached resources)
-- Thread safety (nonisolated(unsafe) static vars, concurrent access)
-- Error handling (graceful degradation, user feedback)
-- Edge cases (empty files, binary files, huge headings, deeply nested lists)
-- WebView process termination recovery
-
-**Quality (non-feature):**
-- Build warnings (Release mode)
-- Code correctness (regex edge cases, string handling)
-- Test coverage for existing functionality
+Pick ONE incremental step from the roadmap below. Describe:
+- What will change (JS, CSS, Swift, or all)
+- Expected behavior after this step
+- Any risks or edge cases
 
 ### 2. Implement
 
-- Read the relevant source files before making changes
-- Make the minimal change needed
-- Do NOT add new features — only fix security issues, stability bugs, and quality problems
+- Read relevant source files before making changes
+- Make the minimal change for this step
+- Keep the UI polished at every step — no half-broken intermediate states
 - Build and verify:
   ```
-  xcodebuild -project mods.xcodeproj -scheme mods -configuration Debug build SYMROOT=$(pwd)/build DEVELOPMENT_TEAM=$DEVELOPMENT_TEAM CODE_SIGN_IDENTITY="Apple Development"
+  xcodebuild -project mods.xcodeproj -target mods -configuration Debug build SYMROOT=$(pwd)/build DEVELOPMENT_TEAM=$DEVELOPMENT_TEAM CODE_SIGN_IDENTITY="Apple Development"
   ```
 
 ### 3. Evaluate
 
-- Confirm build succeeds with zero warnings (Release mode)
-- If security: verify the attack vector is blocked
-- If stability: verify the edge case is handled gracefully
+- Confirm build succeeds with zero warnings
+- Verify the step works as described
+- Check dark mode and light mode
 - If the change made things worse, revert it
 - Commit and push
 
-### 4. Repeat
+### 4. Review (every 5th cycle)
 
-Go back to step 1. Stop after 3 cycles per session unless instructed otherwise.
+- Re-read all changed files end-to-end
+- Check for: dead code, duplicated logic, inconsistent naming, performance issues
+- Refactor if needed, then commit separately
+- Update this loop.md with progress
+
+### 5. Repeat
+
+Go back to step 1. Continue until the feature is complete.
+
+## Roadmap
+
+| Step | Description |
+|------|-------------|
+| 1 | Refactor current search JS into a `SearchManager` class with clean API |
+| 2 | Implement multi-term highlight model (array of `{term, color, matchCount}`) |
+| 3 | Render highlights using `<mark>` with per-term color via CSS class |
+| 4 | Add pill-style tag UI showing active terms with × dismiss button |
+| 5 | **Review** — refactor, clean up, verify dark/light mode |
+| 6 | Wire Enter key to add new highlight instead of replacing |
+| 7 | Implement individual term removal (× button clears only that term's marks) |
+| 8 | Add match count per term displayed in each pill |
+| 9 | Implement color slot recycling when 5 slots are full (replace oldest) |
+| 10 | **Review** — refactor, performance check with large documents |
+| 11 | Add "Clear All" button to dismiss all highlights at once |
+| 12 | Polish keyboard navigation (Tab between pills, Delete to remove focused pill) |
+| 13 | Animate highlight add/remove (subtle fade-in/out) |
+| 14 | Persist highlights across file reload (restore on auto-reload) |
+| 15 | **Review** — final refactor, accessibility audit, dark/light mode polish |
 
 ## Completed Improvements
 
@@ -167,7 +197,7 @@ Go back to step 1. Stop after 3 cycles per session unless instructed otherwise.
 
 ## Backlog
 
-1. **Homebrew formula** — `brew install --cask mods`
+1. ~~**Homebrew formula** — `brew install --cask mods`~~ ✅ Done (v1.1)
 2. **Test coverage** — unit tests for MarkdownRenderer, HTMLBuilder
 
 ## Dependency Versions (audited cycle 76)
