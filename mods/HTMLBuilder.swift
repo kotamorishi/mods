@@ -287,7 +287,7 @@ enum HTMLBuilder {
                 var lowerTerm = entry.term.toLowerCase();
                 var cls = '__mods-hl-' + entry.slot;
                 nodes.forEach(function(node) {
-                    if (node.parentNode && node.parentNode.closest && node.parentNode.closest('[class^="__mods-hl-"]')) return;
+                    if (node.parentNode && node.parentNode.closest && node.parentNode.closest('.__mods-highlight')) return;
                     var text = node.textContent;
                     var lower = text.toLowerCase();
                     var idx = lower.indexOf(lowerTerm);
@@ -370,16 +370,6 @@ enum HTMLBuilder {
             }
         };
 
-        // Backward compatibility
-        window.__modsClearHighlights = function() { window.__modsSearch.clearAll(); };
-        window.__modsFindHighlight = function() {
-            var input = document.getElementById('__mods-find-input');
-            if (input) window.__modsSearch.add(input.value);
-        };
-        var hiddenInput = document.createElement('input');
-        hiddenInput.id = '__mods-find-input';
-        hiddenInput.type = 'hidden';
-        document.body.appendChild(hiddenInput);
     })();
     """
 
