@@ -179,6 +179,9 @@ Go back to step 1. Continue until the feature is complete.
 | 90 | Review | Fix race condition, dead code, validation, dark mode contrast |
 | 91 | UX | Add Cmd+Shift+F shortcut to clear all highlights |
 | 92 | Quality | Add aria-label to highlight marks for accessibility |
+| 93 | Quality | Update loop.md with cycles 80-92 |
+| 94 | Quality | Final Release build verification |
+| 95 | Security | Search term length limit (256) and match count cap (10K) |
 
 ## Features
 
@@ -228,6 +231,6 @@ Go back to step 1. Continue until the feature is complete.
 - **App size**: 6.2 MB (Release)
 - **Source**: ~1350 lines Swift, 6 files + 1 QL extension
 - **Build warnings**: 0
-- **Improvement cycles**: 92
+- **Improvement cycles**: 95
 - **Features**: 27
 - **Security layers**: 9 (sanitization, CSP, content JS, navigation, images, referrer, thread safety, context menu, input validation)
