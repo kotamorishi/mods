@@ -42,7 +42,7 @@ struct MarkdownWebView: NSViewRepresentable {
         }
     }
 
-    class Coordinator: NSObject, WKNavigationDelegate {
+    class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
         var currentMarkdown: String = ""
         var isInitialLoadDone = false
         var lastHTML: String = ""
@@ -79,6 +79,17 @@ struct MarkdownWebView: NSViewRepresentable {
             }
         }
 
+        func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (Bool) -> Void) {
+            let alert = NSAlert()
+            alert.messageText = "Load External Image"
+            alert.informativeText = message
+            alert.addButton(withTitle: "Load")
+            alert.addButton(withTitle: "Cancel")
+            alert.alertStyle = .informational
+            let response = alert.runModal()
+            completionHandler(response == .alertFirstButtonReturn)
+        }
+
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -87,6 +98,7 @@ struct MarkdownWebView: NSViewRepresentable {
         let webView = ModsWebView(frame: .zero, configuration: HTMLBuilder.webViewConfiguration())
         webView.autoresizingMask = [.width, .height]
         webView.navigationDelegate = context.coordinator
+        webView.uiDelegate = context.coordinator
         context.coordinator.currentMarkdown = markdown
 
         if !markdown.isEmpty {
