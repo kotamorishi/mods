@@ -27,12 +27,7 @@ struct MarkdownWebView: NSViewRepresentable {
 
     /// WKWebView subclass that filters context menu items and handles file drops.
     class ModsWebView: WKWebView {
-        override init(frame: CGRect, configuration: WKWebViewConfiguration) {
-            super.init(frame: frame, configuration: configuration)
-            registerForDraggedTypes([.fileURL])
-        }
-
-        required init?(coder: NSCoder) { fatalError() }
+        private var didSetupDrop = false
 
         override func willOpenMenu(_ menu: NSMenu, with event: NSEvent) {
             let removeSelectors: Set<String> = [
@@ -46,6 +41,27 @@ struct MarkdownWebView: NSViewRepresentable {
                 return false
             }
             super.willOpenMenu(menu, with: event)
+        }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            guard !didSetupDrop, window != nil else { return }
+            didSetupDrop = true
+            // Delay to let WKWebView create its internal subviews first
+            DispatchQueue.main.async { [weak self] in
+                self?.setupDropHandling()
+            }
+        }
+
+        private func setupDropHandling() {
+            func unregisterAll(_ view: NSView) {
+                for sub in view.subviews {
+                    sub.unregisterDraggedTypes()
+                    unregisterAll(sub)
+                }
+            }
+            unregisterAll(self)
+            registerForDraggedTypes([.fileURL])
         }
 
         override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
