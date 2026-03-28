@@ -24,6 +24,7 @@ struct modsApp: App {
     @FocusedValue(\.printAction) private var printAction
     @FocusedValue(\.exportPDFAction) private var exportPDFAction
     @FocusedValue(\.tocAction) private var tocAction
+    @FocusedValue(\.clearHighlightsAction) private var clearHighlightsAction
 
     var body: some Scene {
         // Welcome window (no file)
@@ -58,6 +59,10 @@ struct modsApp: App {
                     findAction?()
                 }
                 .keyboardShortcut("f", modifiers: .command)
+                Button("Clear All Highlights") {
+                    clearHighlightsAction?()
+                }
+                .keyboardShortcut("f", modifiers: [.command, .shift])
                 Button("Table of Contents") {
                     tocAction?()
                 }
@@ -291,6 +296,7 @@ struct FileView: View {
             .focusedSceneValue(\.printAction, performPrint)
             .focusedSceneValue(\.exportPDFAction, performExportPDF)
             .focusedSceneValue(\.tocAction, toggleTOC)
+            .focusedSceneValue(\.clearHighlightsAction, clearHighlights)
             .onDrop(of: [.fileURL], isTargeted: nil) { providers in
                 guard let provider = providers.first else { return false }
                 _ = provider.loadObject(ofClass: URL.self) { url, _ in
@@ -318,6 +324,7 @@ struct FileView: View {
     private func performPrint() { printTrigger += 1 }
     private func performExportPDF() { exportPDFTrigger += 1 }
     private func toggleTOC() { showTOC.toggle() }
+    private func clearHighlights() { searchClearTrigger += 1 }
 
     private func openFile() {
         for url in FilePickerHelper.runOpenPanel() {
@@ -377,6 +384,10 @@ struct TOCActionKey: FocusedValueKey {
     typealias Value = () -> Void
 }
 
+struct ClearHighlightsActionKey: FocusedValueKey {
+    typealias Value = () -> Void
+}
+
 extension FocusedValues {
     var openFileAction: (() -> Void)? {
         get { self[OpenFileActionKey.self] }
@@ -397,6 +408,10 @@ extension FocusedValues {
     var tocAction: (() -> Void)? {
         get { self[TOCActionKey.self] }
         set { self[TOCActionKey.self] = newValue }
+    }
+    var clearHighlightsAction: (() -> Void)? {
+        get { self[ClearHighlightsActionKey.self] }
+        set { self[ClearHighlightsActionKey.self] = newValue }
     }
 }
 
