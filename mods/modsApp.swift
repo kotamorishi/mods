@@ -3,6 +3,10 @@ import UniformTypeIdentifiers
 
 /// Handles file open events from Finder (double-click, "Open With").
 class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        NSWindow.allowsAutomaticWindowTabbing = true
+    }
+
     func application(_ application: NSApplication, open urls: [URL]) {
         for url in urls {
             NotificationCenter.default.post(name: .openFileFromFinder, object: url)
