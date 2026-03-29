@@ -611,7 +611,30 @@ enum HTMLBuilder {
             js += "if (typeof renderMathInElement === 'undefined') { \(cachedResource("katex-auto-render.min", type: "js")) }\n"
         }
         js += "window.__modsPostProcess();\n"
+        js += autoLoadTrustedImagesJS()
         return js
+    }
+
+    /// Generate JS that auto-triggers loading for images from trusted domains.
+    private static func autoLoadTrustedImagesJS() -> String {
+        let domains = TrustedImageDomains.trustedDomains()
+        guard !domains.isEmpty else { return "" }
+        let jsonDomains = domains.map { jsonEncode($0) }.joined(separator: ",")
+        return """
+        (function() {
+            var trusted = new Set([\(jsonDomains)]);
+            document.querySelectorAll('.blocked-image[data-img-src]').forEach(function(el) {
+                var src = el.getAttribute('data-img-src');
+                if (!src) return;
+                try {
+                    var host = new URL(src).hostname;
+                    if (trusted.has(host) && el.id) {
+                        window.webkit.messageHandlers.loadImage.postMessage({ id: el.id, src: src });
+                    }
+                } catch(e) {}
+            });
+        })();
+        """
     }
 
     // MARK: - Utilities
@@ -656,23 +679,35 @@ enum HTMLBuilder {
 }
 
 /// Manages trusted image domains and handles external image load confirmation.
+/// Stored in shared App Group UserDefaults so QuickLook extension can auto-load trusted images.
 enum TrustedImageDomains {
     private static let key = "trustedImageDomains"
+    private static let suiteName = "group.com.kotamorishita.mods"
+
+    private static var defaults: UserDefaults {
+        UserDefaults(suiteName: suiteName) ?? .standard
+    }
 
     static func trustedDomains() -> Set<String> {
-        Set(UserDefaults.standard.stringArray(forKey: key) ?? [])
+        // Migrate from old UserDefaults.standard to shared suite (one-time)
+        if defaults.stringArray(forKey: key) == nil,
+           let old = UserDefaults.standard.stringArray(forKey: key) {
+            defaults.set(old, forKey: key)
+            UserDefaults.standard.removeObject(forKey: key)
+        }
+        return Set(defaults.stringArray(forKey: key) ?? [])
     }
 
     static func addDomain(_ domain: String) {
         var domains = trustedDomains()
         domains.insert(domain)
-        UserDefaults.standard.set(Array(domains), forKey: key)
+        defaults.set(Array(domains), forKey: key)
     }
 
     static func removeDomain(_ domain: String) {
         var domains = trustedDomains()
         domains.remove(domain)
-        UserDefaults.standard.set(Array(domains), forKey: key)
+        defaults.set(Array(domains), forKey: key)
     }
 
     private static func domain(from urlString: String) -> String? {
