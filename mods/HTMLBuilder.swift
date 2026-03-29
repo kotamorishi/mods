@@ -410,10 +410,17 @@ enum HTMLBuilder {
                 return this._termsJSON();
             },
 
+            _clearKeywordHighlights: function() {
+                var kws = document.querySelectorAll('.__mods-keyword-hl');
+                kws.forEach(function(el) { el.replaceWith(el.textContent); });
+                if (kws.length > 0) document.getElementById('content').normalize();
+            },
+
             remove: function(term) {
                 var lower = term.toLowerCase();
                 this.terms = this.terms.filter(function(e) { return e.term.toLowerCase() !== lower; });
                 this._rebuildAll();
+                this._clearKeywordHighlights();
                 this._updateMarginMarks();
                 return this._termsJSON();
             },
@@ -421,6 +428,7 @@ enum HTMLBuilder {
             clearAll: function() {
                 this.terms = [];
                 this._clearMarks();
+                this._clearKeywordHighlights();
                 var c = document.getElementById('__mods-margin-marks');
                 if (c) c.innerHTML = '';
                 return '[]';
