@@ -244,7 +244,7 @@ struct WelcomeView: View {
 
             Spacer()
             HStack(spacing: 4) {
-                Text("v1.3")
+                Text("v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?")")
                 Text("·")
                 Text("GFM · Syntax Highlighting · KaTeX · Mermaid")
             }
