@@ -164,11 +164,39 @@ struct WelcomeView: View {
     @Environment(\.dismissWindow) private var dismissWindow
 
     var body: some View {
-        Text("Drop a markdown file or use File > Open")
+        VStack(spacing: 20) {
+            Spacer()
+            Image(nsImage: NSApp.applicationIconImage)
+                .resizable()
+                .frame(width: 80, height: 80)
+            Text("Mods")
+                .font(.title)
+                .fontWeight(.semibold)
+            Text("Markdown Viewer for macOS")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            Divider().frame(width: 200)
+            VStack(alignment: .leading, spacing: 8) {
+                Label("Drop a file here to open", systemImage: "arrow.down.doc")
+                Label("File > Open or Cmd+O", systemImage: "folder")
+                Label("Double-click .md files in Finder", systemImage: "cursorarrow.click.2")
+                Label("Press Space in Finder for QuickLook", systemImage: "eye")
+            }
+            .font(.system(size: 13))
             .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .frame(minWidth: 400, minHeight: 300)
-            .focusedSceneValue(\.openFileAction, openFile)
+            Spacer()
+            HStack(spacing: 4) {
+                Text("v1.3")
+                Text("·")
+                Text("GFM · Syntax Highlighting · KaTeX · Mermaid")
+            }
+            .font(.system(size: 11))
+            .foregroundStyle(.tertiary)
+            .padding(.bottom, 12)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(minWidth: 400, minHeight: 350)
+        .focusedSceneValue(\.openFileAction, openFile)
             .onAppear {
                 // Tag the welcome window so we can find it later
                 DispatchQueue.main.async {
