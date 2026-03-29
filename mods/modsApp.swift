@@ -5,17 +5,31 @@ import UniformTypeIdentifiers
 class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSWindow.allowsAutomaticWindowTabbing = true
-        // Set tabbingMode on all new windows so they open as tabs automatically
-        NotificationCenter.default.addObserver(forName: NSWindow.didBecomeKeyNotification, object: nil, queue: .main) { note in
-            guard let window = note.object as? NSWindow else { return }
-            window.tabbingMode = .preferred
-        }
+        NSWindow.installTabbingSwizzle()
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
         for url in urls {
             NotificationCenter.default.post(name: .openFileFromFinder, object: url)
         }
+    }
+}
+
+extension NSWindow {
+    static func installTabbingSwizzle() {
+        let original = #selector(NSWindow.makeKeyAndOrderFront(_:))
+        let swizzled = #selector(NSWindow.mods_makeKeyAndOrderFront(_:))
+        guard let m1 = class_getInstanceMethod(NSWindow.self, original),
+              let m2 = class_getInstanceMethod(NSWindow.self, swizzled) else { return }
+        method_exchangeImplementations(m1, m2)
+    }
+
+    @objc func mods_makeKeyAndOrderFront(_ sender: Any?) {
+        if !(self is NSPanel) && styleMask.contains(.titled) && styleMask.contains(.closable) {
+            tabbingMode = .preferred
+            tabbingIdentifier = "com.mods.viewer"
+        }
+        mods_makeKeyAndOrderFront(sender)
     }
 }
 
