@@ -52,7 +52,18 @@ struct modsApp: App {
                 FileView(initialURL: url)
                     .onReceive(NotificationCenter.default.publisher(for: .openFileFromFinder)) { notification in
                         if let fileURL = notification.object as? URL {
+                            let sourceWindow = notification.userInfo?["sourceWindow"] as? NSWindow
+                            let existingWindows = Set(NSApp.windows)
                             openWindow(value: fileURL)
+                            // Add new window as tab of source window
+                            if let sourceWindow {
+                                DispatchQueue.main.async {
+                                    if let newWindow = NSApp.windows.first(where: { !existingWindows.contains($0) && $0.isVisible }) {
+                                        sourceWindow.addTabbedWindow(newWindow, ordered: .above)
+                                        newWindow.makeKeyAndOrderFront(nil)
+                                    }
+                                }
+                            }
                         }
                     }
             }

@@ -77,7 +77,7 @@ struct MarkdownWebView: NSViewRepresentable {
             let valid = urls.filter { URLValidator.isSafe($0) }
             guard !valid.isEmpty else { return super.performDragOperation(sender) }
             for url in valid {
-                NotificationCenter.default.post(name: .openFileFromFinder, object: url)
+                NotificationCenter.default.post(name: .openFileFromFinder, object: url, userInfo: ["sourceWindow": self.window as Any])
             }
             return true
         }
