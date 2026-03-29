@@ -360,7 +360,7 @@ enum HTMLBuilder {
             _rebuildAll: function() {
                 this._clearMarks();
                 for (var i = 0; i < this.terms.length; i++) {
-                    this.terms[i].navIndex = undefined;
+                    this.terms[i].navIndex = -1;
                     this._highlightTerm(this.terms[i]);
                 }
             },
