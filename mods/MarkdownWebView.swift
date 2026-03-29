@@ -279,14 +279,8 @@ struct MarkdownWebView: NSViewRepresentable {
             let jsonTarget = HTMLBuilder.jsonEncode(tocScrollTarget)
             let js = """
             (function() {
-                var target = \(jsonTarget);
-                var headings = document.querySelectorAll('h1,h2,h3,h4,h5,h6');
-                for (var h of headings) {
-                    if (h.textContent.trim() === target) {
-                        h.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                        break;
-                    }
-                }
+                var el = document.getElementById(\(jsonTarget));
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
             })();
             """
             webView.evaluateJavaScript(js)
@@ -382,7 +376,7 @@ struct MarkdownWebView: NSViewRepresentable {
             var headings = document.querySelectorAll('h1,h2,h3,h4,h5,h6');
             for (var i = headings.length - 1; i >= 0; i--) {
                 if (headings[i].getBoundingClientRect().top <= 10) {
-                    marker = headings[i].textContent.trim();
+                    marker = headings[i].id || headings[i].textContent.trim();
                     break;
                 }
             }
@@ -397,12 +391,16 @@ struct MarkdownWebView: NSViewRepresentable {
 
             // Restore position
             if (marker) {
-                var newHeadings = document.querySelectorAll('h1,h2,h3,h4,h5,h6');
-                for (var h of newHeadings) {
-                    if (h.textContent.trim() === marker) {
-                        h.scrollIntoView({ block: 'start' });
-                        return;
+                var found = marker ? document.getElementById(marker) : null;
+                if (!found) {
+                    var newHeadings = document.querySelectorAll('h1,h2,h3,h4,h5,h6');
+                    for (var h of newHeadings) {
+                        if (h.textContent.trim() === marker) { found = h; break; }
                     }
+                }
+                if (found) {
+                    found.scrollIntoView({ block: 'start' });
+                    return;
                 }
             }
             // Fallback: restore by scroll ratio

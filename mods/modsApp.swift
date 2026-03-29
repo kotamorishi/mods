@@ -408,9 +408,10 @@ struct FileView: View {
     @AppStorage("showTOC") private var showTOC: Bool = false
     @AppStorage("tocWidth") private var tocWidth: Double = 220
 
-    private var headings: [(level: Int, text: String)] {
-        markdown.components(separatedBy: "\n")
-            .compactMap { line -> (Int, String)? in
+    private var headings: [(level: Int, text: String, id: String)] {
+        var counts: [String: Int] = [:]
+        return markdown.components(separatedBy: "\n")
+            .compactMap { line -> (Int, String, String)? in
                 let trimmed = line.trimmingCharacters(in: .whitespaces)
                 guard trimmed.hasPrefix("#") else { return nil }
                 var level = 0
@@ -418,7 +419,15 @@ struct FileView: View {
                 guard level >= 1 && level <= 6 else { return nil }
                 let text = String(trimmed.dropFirst(level)).trimmingCharacters(in: .whitespaces)
                 guard !text.isEmpty else { return nil }
-                return (level, text)
+                var slug = text.lowercased()
+                    .replacingOccurrences(of: "[^a-z0-9\\s-]", with: "", options: .regularExpression)
+                    .replacingOccurrences(of: "\\s+", with: "-", options: .regularExpression)
+                    .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+                if slug.isEmpty { slug = "heading" }
+                let count = counts[slug, default: 0]
+                counts[slug] = count + 1
+                let id = count == 0 ? slug : "\(slug)-\(count)"
+                return (level, text, id)
             }
     }
 
@@ -1016,7 +1025,7 @@ extension View {
 }
 
 struct TOCSidebar: View {
-    let headings: [(level: Int, text: String)]
+    let headings: [(level: Int, text: String, id: String)]
     let zoomLevel: Double
     let width: Double
     let onSelect: (String) -> Void
@@ -1047,7 +1056,7 @@ struct TOCSidebar: View {
                 VStack(alignment: .leading, spacing: 1) {
                     ForEach(Array(headings.enumerated()), id: \.offset) { _, heading in
                         Button {
-                            onSelect(heading.text)
+                            onSelect(heading.id)
                         } label: {
                             HStack(spacing: 6) {
                                 Circle()

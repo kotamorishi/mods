@@ -53,11 +53,47 @@ struct MarkdownRenderer {
         html = wrapTables(html)
         html = blockExternalImages(html)
         html = processAlerts(html)
+        html = addHeadingIDs(html)
         html = processEmoji(html)
         html = processColorChips(html)
         html = highlightKeywords(html)
 
         return html
+    }
+
+    // MARK: - Heading IDs
+
+    private static let headingTagRegex = try! NSRegularExpression(
+        pattern: "<(h[1-6])>(.*?)</\\1>",
+        options: .dotMatchesLineSeparators
+    )
+
+    /// Add unique IDs to heading tags for TOC navigation.
+    private static func addHeadingIDs(_ html: String) -> String {
+        guard html.contains("<h") else { return html }
+        let nsHtml = html as NSString
+        let range = NSRange(location: 0, length: nsHtml.length)
+        var counts: [String: Int] = [:]
+        var result = html
+
+        for match in headingTagRegex.matches(in: html, range: range).reversed() {
+            let tag = nsHtml.substring(with: match.range(at: 1))
+            let content = nsHtml.substring(with: match.range(at: 2))
+            // Generate slug from text content (strip HTML tags)
+            let text = content.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+            var slug = text.lowercased()
+                .replacingOccurrences(of: "[^a-z0-9\\s-]", with: "", options: .regularExpression)
+                .replacingOccurrences(of: "\\s+", with: "-", options: .regularExpression)
+                .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+            if slug.isEmpty { slug = "heading" }
+            let count = counts[slug, default: 0]
+            counts[slug] = count + 1
+            let id = count == 0 ? slug : "\(slug)-\(count)"
+            let replacement = "<\(tag) id=\"\(id)\">\(content)</\(tag)>"
+            guard let swiftRange = Range(match.range, in: result) else { continue }
+            result.replaceSubrange(swiftRange, with: replacement)
+        }
+        return result
     }
 
     // MARK: - Table Wrapping

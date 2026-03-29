@@ -209,7 +209,7 @@ enum HTMLBuilder {
         document.querySelectorAll('pre').forEach(function(pre) {
             if (pre.querySelector('.__mods-copy-btn')) return;
             var code = pre.querySelector('code');
-            if (!code) return;
+            if (!code || !code.textContent.trim()) return;
             pre.style.position = 'relative';
             var btn = document.createElement('button');
             btn.className = '__mods-copy-btn';
@@ -252,22 +252,48 @@ enum HTMLBuilder {
             });
         });
         // Called from Swift after user confirms
-        window.__modsLoadImage = function(id, src) {
+        window.__modsLoadImage = function(id, src, retryCount) {
             var el = document.getElementById(id);
             if (!el) return;
+            var attempt = retryCount || 0;
+            var maxRetries = 3;
+            var timeoutMs = 30000;
             el.className = 'blocked-image loading-image';
-            el.innerHTML = '<div class="loading-spinner"></div><div class="blocked-image-label">Loading...</div><div class="blocked-image-url">' + src.replace(/</g, '&lt;') + '</div>';
+            el.innerHTML = '<div class="loading-spinner"></div><div class="blocked-image-label">Loading' + (attempt > 0 ? ' (retry ' + attempt + '/' + maxRetries + ')' : '') + '...</div><div class="blocked-image-url">' + src.replace(/</g, '&lt;') + '</div>';
             var img = document.createElement('img');
             img.style.maxWidth = '100%';
+            var done = false;
+            var timer = setTimeout(function() {
+                if (done) return;
+                done = true;
+                img.src = '';
+                if (attempt < maxRetries) {
+                    window.__modsLoadImage(id, src, attempt + 1);
+                } else {
+                    el.className = 'blocked-image';
+                    el.setAttribute('data-img-src', src);
+                    el.innerHTML = '<div class="blocked-image-icon">&#x26A0;</div><div class="blocked-image-label">Timed out</div><div class="blocked-image-url">' + src.replace(/</g, '&lt;') + '</div><div class="blocked-image-action">Click to retry</div>';
+                }
+            }, timeoutMs);
             img.onload = function() {
+                if (done) return;
+                done = true;
+                clearTimeout(timer);
                 el.className = 'loaded-image';
                 el.innerHTML = '';
                 el.appendChild(img);
             };
             img.onerror = function() {
-                el.className = 'blocked-image';
-                el.setAttribute('data-img-src', src);
-                el.innerHTML = '<div class="blocked-image-icon">&#x26A0;</div><div class="blocked-image-label">Failed to load</div><div class="blocked-image-url">' + src.replace(/</g, '&lt;') + '</div><div class="blocked-image-action">Click to retry</div>';
+                if (done) return;
+                done = true;
+                clearTimeout(timer);
+                if (attempt < maxRetries) {
+                    window.__modsLoadImage(id, src, attempt + 1);
+                } else {
+                    el.className = 'blocked-image';
+                    el.setAttribute('data-img-src', src);
+                    el.innerHTML = '<div class="blocked-image-icon">&#x26A0;</div><div class="blocked-image-label">Failed to load</div><div class="blocked-image-url">' + src.replace(/</g, '&lt;') + '</div><div class="blocked-image-action">Click to retry</div>';
+                }
             };
             img.src = src;
         };
@@ -320,7 +346,8 @@ enum HTMLBuilder {
                     var idx = haystack.indexOf(searchTerm);
                     if (idx === -1) return;
                     if (entry.wholeWord) {
-                        var re = new RegExp('\\b' + searchTerm.replace(/[.*+?^${}()|\\[\\]\\\\]/g, '\\\\$&') + '\\b', entry.caseSensitive ? 'g' : 'gi');
+                        var escaped = searchTerm.replace(/[.*+?^${}()|\\[\\]\\\\]/g, '\\\\$&');
+                        var re = new RegExp('(?<![\\w\\u00C0-\\u024F])' + escaped + '(?![\\w\\u00C0-\\u024F])', entry.caseSensitive ? 'g' : 'gi');
                         var frag = document.createDocumentFragment();
                         var lastIdx = 0;
                         var m;
