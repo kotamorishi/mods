@@ -228,15 +228,7 @@ struct WelcomeView: View {
                             .font(.system(size: 11))
                             .padding(.horizontal, 8)
                             .padding(.vertical, 3)
-                            .background(
-                                RoundedRectangle(cornerRadius: 4)
-                                    .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: [4, 2]))
-                                    .foregroundStyle(.orange.opacity(0.6))
-                            )
-                            .background(
-                                RoundedRectangle(cornerRadius: 4)
-                                    .fill(.orange.opacity(0.1))
-                            )
+                            .background(.quaternary, in: Capsule())
                         }
                     }
                     .frame(maxWidth: 300)
@@ -267,15 +259,7 @@ struct WelcomeView: View {
                             .font(.system(size: 11))
                             .padding(.horizontal, 8)
                             .padding(.vertical, 3)
-                            .background(
-                                RoundedRectangle(cornerRadius: 4)
-                                    .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: [4, 2]))
-                                    .foregroundStyle(.blue.opacity(0.6))
-                            )
-                            .background(
-                                RoundedRectangle(cornerRadius: 4)
-                                    .fill(.blue.opacity(0.1))
-                            )
+                            .background(.quaternary, in: Capsule())
                         }
                     }
                     .frame(maxWidth: 300)
