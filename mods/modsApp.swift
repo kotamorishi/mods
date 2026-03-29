@@ -658,12 +658,16 @@ struct FileView: View {
 
     private func startWatching(_ url: URL) {
         fileWatcher?.stop()
-        fileWatcher = FileWatcher(url: url) {
+        fileWatcher = FileWatcher(url: url) { currentURL in
+            // Update fileURL if the file was renamed
+            if currentURL != self.fileURL {
+                self.fileURL = currentURL
+            }
             // Re-check file size on reload to prevent OOM
-            if let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
+            if let attrs = try? FileManager.default.attributesOfItem(atPath: currentURL.path),
                let size = attrs[.size] as? UInt64,
                size > Self.maxFileSize { return }
-            let newContent = HTMLBuilder.readFileWithFallback(url: url)
+            let newContent = HTMLBuilder.readFileWithFallback(url: currentURL)
             if newContent != self.markdown {
                 self.markdown = newContent
             }

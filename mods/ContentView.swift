@@ -6,11 +6,11 @@ import os
 final class FileWatcher: @unchecked Sendable {
     private let lock = OSAllocatedUnfairLock<DispatchSourceFileSystemObject?>(initialState: nil)
     private let url: URL
-    private let onChange: @Sendable () -> Void
+    private let onChange: @Sendable (URL) -> Void
 
-    init(url: URL, onChange: @MainActor @escaping () -> Void) {
+    init(url: URL, onChange: @MainActor @escaping (URL) -> Void) {
         self.url = url
-        self.onChange = { DispatchQueue.main.async { onChange() } }
+        self.onChange = { url in DispatchQueue.main.async { onChange(url) } }
     }
 
     func start() {
@@ -25,7 +25,15 @@ final class FileWatcher: @unchecked Sendable {
             queue: DispatchQueue.global(qos: .utility)
         )
         newSource.setEventHandler { [onChange] in
-            onChange()
+            // Resolve current path from fd (handles renames)
+            var buf = [CChar](repeating: 0, count: Int(MAXPATHLEN))
+            let currentURL: URL
+            if fcntl(fd, F_GETPATH, &buf) != -1 {
+                currentURL = URL(fileURLWithPath: String(cString: buf))
+            } else {
+                return // fd invalid, file likely deleted
+            }
+            onChange(currentURL)
         }
         newSource.setCancelHandler {
             close(fd)
