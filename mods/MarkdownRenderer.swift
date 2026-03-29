@@ -295,6 +295,12 @@ enum HighlightKeywords {
     }
 
     static func keywords() -> [String] {
+        // Migrate from old UserDefaults.standard to shared suite (one-time)
+        if defaults.string(forKey: key) == nil,
+           let oldData = UserDefaults.standard.string(forKey: key) {
+            defaults.set(oldData, forKey: key)
+            UserDefaults.standard.removeObject(forKey: key)
+        }
         guard let data = defaults.string(forKey: key)?.data(using: .utf8),
               let array = try? JSONDecoder().decode([String].self, from: data) else { return [] }
         return array
