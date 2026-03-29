@@ -796,19 +796,26 @@ struct SearchTermsBar: View {
             if !terms.isEmpty {
                 HStack(spacing: 6) {
                     ForEach(Array(terms.enumerated()), id: \.element.term) { _, entry in
-                        HStack(spacing: 4) {
-                            Circle()
-                                .fill(Self.slotColors[entry.slot % Self.slotColors.count])
-                                .frame(width: 8, height: 8)
-                            Text(entry.term)
-                                .lineLimit(1)
-                            if entry.current > 0 {
-                                Text("\(entry.current)/\(entry.count)")
-                                    .foregroundStyle(.secondary)
-                            } else {
-                                Text("\(entry.count)")
-                                    .foregroundStyle(.secondary)
+                        HStack(spacing: 2) {
+                            Button {
+                                onTap(entry.term)
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Circle()
+                                        .fill(Self.slotColors[entry.slot % Self.slotColors.count])
+                                        .frame(width: 8, height: 8)
+                                    Text(entry.term)
+                                        .lineLimit(1)
+                                    if entry.current > 0 {
+                                        Text("\(entry.current)/\(entry.count)")
+                                            .foregroundStyle(.secondary)
+                                    } else {
+                                        Text("\(entry.count)")
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
                             }
+                            .buttonStyle(.plain)
                             Button {
                                 onRemove(entry.term)
                             } label: {
@@ -822,10 +829,6 @@ struct SearchTermsBar: View {
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
                         .background(.quaternary, in: Capsule())
-                        .contentShape(Capsule())
-                        .onTapGesture {
-                            onTap(entry.term)
-                        }
                         .transition(.scale.combined(with: .opacity))
                     }
                     Spacer()
