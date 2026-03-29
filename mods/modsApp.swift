@@ -215,6 +215,7 @@ struct FileView: View {
     @State private var exportPDFTrigger: Int = 0
     @State private var tocScrollTarget: String = ""
     @AppStorage("showTOC") private var showTOC: Bool = false
+    @AppStorage("tocWidth") private var tocWidth: Double = 220
 
     private var headings: [(level: Int, text: String)] {
         markdown.components(separatedBy: "\n")
@@ -279,10 +280,10 @@ struct FileView: View {
     private var contentArea: some View {
         HStack(spacing: 0) {
             if showTOC && !headings.isEmpty {
-                TOCSidebar(headings: headings, zoomLevel: zoomLevel) { heading in
+                TOCSidebar(headings: headings, zoomLevel: zoomLevel, width: tocWidth) { heading in
                     tocScrollTarget = heading
                 }
-                Divider()
+                ResizableHandle(width: $tocWidth)
             }
             markdownWebView
         }
@@ -793,9 +794,37 @@ struct CompactSlider: View {
 }
 
 /// VS Code-style outline sidebar showing heading hierarchy.
+/// Draggable handle to resize the TOC sidebar.
+struct ResizableHandle: View {
+    @Binding var width: Double
+
+    var body: some View {
+        Rectangle()
+            .fill(Color.primary.opacity(0.001))
+            .frame(width: 6)
+            .cursor(.resizeLeftRight)
+            .gesture(
+                DragGesture(minimumDistance: 1)
+                    .onChanged { value in
+                        width = max(120, min(500, width + value.translation.width))
+                    }
+            )
+            .overlay(Divider())
+    }
+}
+
+extension View {
+    func cursor(_ cursor: NSCursor) -> some View {
+        onHover { inside in
+            if inside { cursor.push() } else { NSCursor.pop() }
+        }
+    }
+}
+
 struct TOCSidebar: View {
     let headings: [(level: Int, text: String)]
     let zoomLevel: Double
+    let width: Double
     let onSelect: (String) -> Void
 
     private static let dotSizes: [CGFloat] = [8, 7, 6, 5, 4, 4]
@@ -850,7 +879,7 @@ struct TOCSidebar: View {
                 .padding(.bottom, 8)
             }
         }
-        .frame(width: 220)
+        .frame(width: max(120, min(500, width)))
         .background(.background)
     }
 }
