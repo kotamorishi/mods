@@ -279,7 +279,7 @@ struct FileView: View {
     private var contentArea: some View {
         HStack(spacing: 0) {
             if showTOC && !headings.isEmpty {
-                TOCSidebar(headings: headings) { heading in
+                TOCSidebar(headings: headings, zoomLevel: zoomLevel) { heading in
                     tocScrollTarget = heading
                 }
                 Divider()
@@ -795,6 +795,7 @@ struct CompactSlider: View {
 /// VS Code-style outline sidebar showing heading hierarchy.
 struct TOCSidebar: View {
     let headings: [(level: Int, text: String)]
+    let zoomLevel: Double
     let onSelect: (String) -> Void
 
     private static let dotSizes: [CGFloat] = [8, 7, 6, 5, 4, 4]
@@ -831,7 +832,7 @@ struct TOCSidebar: View {
                                     .frame(width: Self.dotSizes[min(heading.level - 1, 5)],
                                            height: Self.dotSizes[min(heading.level - 1, 5)])
                                 Text(heading.text)
-                                    .font(.system(size: heading.level <= 2 ? 12 : 11,
+                                    .font(.system(size: (heading.level <= 2 ? 12 : 11) * zoomLevel,
                                                   weight: heading.level <= 1 ? .semibold : .regular))
                                     .foregroundStyle(heading.level <= 2 ? .primary : .secondary)
                                     .lineLimit(1)
