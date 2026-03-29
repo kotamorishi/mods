@@ -941,6 +941,7 @@ enum WordExtractor {
             guard let word else { return }
             let lower = word.lowercased()
             if lower.count < 3 && lower.allSatisfy({ $0.isASCII }) { return }
+            if lower.count > 50 { return }
             if stopWords.contains(lower) { return }
             if lower.allSatisfy({ $0.isNumber }) { return }
             frequency[lower, default: 0] += 1

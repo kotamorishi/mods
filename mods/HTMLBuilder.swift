@@ -279,6 +279,7 @@ enum HTMLBuilder {
                 if (done) return;
                 done = true;
                 clearTimeout(timer);
+                if (!el.parentNode) return;
                 el.className = 'loaded-image';
                 el.innerHTML = '';
                 el.appendChild(img);
@@ -287,6 +288,7 @@ enum HTMLBuilder {
                 if (done) return;
                 done = true;
                 clearTimeout(timer);
+                if (!el.parentNode) return;
                 if (attempt < maxRetries) {
                     window.__modsLoadImage(id, src, attempt + 1);
                 } else {
