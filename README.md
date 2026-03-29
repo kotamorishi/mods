@@ -10,6 +10,13 @@ A fast, lightweight macOS native markdown viewer. View-only — no editing.
   <a href="https://apps.apple.com/app/mods-markdown-viewer/id6760838590">Download on the Mac App Store</a>
 </p>
 
+<p align="center">
+  <img src="screenshots/screenshot-1.jpg" width="24%" alt="Code blocks and outline sidebar">
+  <img src="screenshots/screenshot-3.jpg" width="24%" alt="Math, diagrams, and emoji">
+  <img src="screenshots/screenshot-6.jpg" width="24%" alt="Dark mode with search">
+  <img src="screenshots/screenshot-2.jpg" width="24%" alt="Tables, task lists, and alerts">
+</p>
+
 ### Install with Homebrew
 
 ```bash
