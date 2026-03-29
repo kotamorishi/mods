@@ -164,6 +164,7 @@ struct WelcomeView: View {
     @Environment(\.dismissWindow) private var dismissWindow
     @State private var highlightKeywords: [String] = HighlightKeywords.keywords()
     @State private var newKeyword: String = ""
+    @State private var trustedDomains: [String] = Array(TrustedImageDomains.trustedDomains()).sorted()
 
     var body: some View {
         VStack(spacing: 20) {
@@ -242,6 +243,45 @@ struct WelcomeView: View {
                 }
             }
 
+            // Trusted domains editor
+            if !trustedDomains.isEmpty {
+                VStack(spacing: 8) {
+                    Divider().frame(width: 200)
+                    Label("Always Trust This Domain", systemImage: "shield.checkered")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    FlowLayout(spacing: 6) {
+                        ForEach(trustedDomains, id: \.self) { domain in
+                            HStack(spacing: 4) {
+                                Text(domain)
+                                    .lineLimit(1)
+                                Button {
+                                    removeTrustedDomain(domain)
+                                } label: {
+                                    Image(systemName: "xmark")
+                                        .font(.system(size: 8, weight: .bold))
+                                }
+                                .buttonStyle(.plain)
+                                .foregroundStyle(.secondary)
+                            }
+                            .font(.system(size: 11))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(
+                                RoundedRectangle(cornerRadius: 4)
+                                    .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: [4, 2]))
+                                    .foregroundStyle(.blue.opacity(0.6))
+                            )
+                            .background(
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(.blue.opacity(0.1))
+                            )
+                        }
+                    }
+                    .frame(maxWidth: 300)
+                }
+            }
+
             Spacer()
             HStack(spacing: 4) {
                 Text("v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?")")
@@ -300,6 +340,11 @@ struct WelcomeView: View {
     private func removeKeyword(_ keyword: String) {
         highlightKeywords.removeAll { $0 == keyword }
         HighlightKeywords.save(highlightKeywords)
+    }
+
+    private func removeTrustedDomain(_ domain: String) {
+        TrustedImageDomains.removeDomain(domain)
+        trustedDomains = Array(TrustedImageDomains.trustedDomains()).sorted()
     }
 
     private func openFile() {

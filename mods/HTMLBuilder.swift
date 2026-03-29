@@ -669,6 +669,12 @@ enum TrustedImageDomains {
         UserDefaults.standard.set(Array(domains), forKey: key)
     }
 
+    static func removeDomain(_ domain: String) {
+        var domains = trustedDomains()
+        domains.remove(domain)
+        UserDefaults.standard.set(Array(domains), forKey: key)
+    }
+
     private static func domain(from urlString: String) -> String? {
         URL(string: urlString)?.host
     }
