@@ -182,7 +182,7 @@ https://github.com (autolink)
 
 ## 6. Images
 
-![Placeholder](https://via.placeholder.com/150)
+![Placeholder](https://kotamorishita.com/content/images/size/w2000/2025/03/weatherCrow-1.jpg)
 
 ## 7. Unordered Lists
 
