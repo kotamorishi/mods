@@ -55,6 +55,7 @@ struct MarkdownRenderer {
         html = processAlerts(html)
         html = processEmoji(html)
         html = processColorChips(html)
+        html = highlightKeywords(html)
 
         return html
     }
@@ -224,6 +225,40 @@ struct MarkdownRenderer {
         return result
     }
 
+    // MARK: - Keyword Highlight
+
+    private static func highlightKeywords(_ html: String) -> String {
+        let keywords = HighlightKeywords.keywords()
+        guard !keywords.isEmpty else { return html }
+
+        let nsHtml = html as NSString
+        let fullRange = NSRange(location: 0, length: nsHtml.length)
+
+        let codeRanges = codeBlockExcludeRegex.matches(in: html, range: fullRange).map { $0.range }
+        let tagRanges = htmlTagExcludeRegex.matches(in: html, range: fullRange).map { $0.range }
+        let excludedRanges = codeRanges + tagRanges
+
+        // Build a single regex matching any keyword (case-insensitive)
+        let escapedKeywords = keywords.map { NSRegularExpression.escapedPattern(for: $0) }
+        let pattern = "(" + escapedKeywords.joined(separator: "|") + ")"
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else { return html }
+
+        var result = html
+        let matches = regex.matches(in: html, range: fullRange).reversed()
+        for match in matches {
+            let matchRange = match.range
+            let isExcluded = excludedRanges.contains { NSIntersectionRange($0, matchRange).length > 0 }
+            if isExcluded { continue }
+
+            let matched = nsHtml.substring(with: matchRange)
+            let replacement = "<span class=\"__mods-keyword-hl\">\(matched)</span>"
+            guard let swiftRange = Range(matchRange, in: result) else { continue }
+            result.replaceSubrange(swiftRange, with: replacement)
+        }
+
+        return result
+    }
+
     // MARK: - Color Chips
 
     private static let colorChipRegexes: [NSRegularExpression] = [
@@ -247,5 +282,23 @@ struct MarkdownRenderer {
             )
         }
         return result
+    }
+}
+
+/// Manages user-defined highlight keywords stored in UserDefaults.
+enum HighlightKeywords {
+    private static let key = "highlightKeywords"
+
+    static func keywords() -> [String] {
+        guard let data = UserDefaults.standard.string(forKey: key)?.data(using: .utf8),
+              let array = try? JSONDecoder().decode([String].self, from: data) else { return [] }
+        return array
+    }
+
+    static func save(_ keywords: [String]) {
+        if let data = try? JSONEncoder().encode(keywords),
+           let json = String(data: data, encoding: .utf8) {
+            UserDefaults.standard.set(json, forKey: key)
+        }
     }
 }

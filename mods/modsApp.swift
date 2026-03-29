@@ -162,6 +162,8 @@ struct modsApp: App {
 struct WelcomeView: View {
     @Environment(\.openWindow) private var openWindow
     @Environment(\.dismissWindow) private var dismissWindow
+    @State private var highlightKeywords: [String] = HighlightKeywords.keywords()
+    @State private var newKeyword: String = ""
 
     var body: some View {
         VStack(spacing: 20) {
@@ -184,6 +186,59 @@ struct WelcomeView: View {
             }
             .font(.system(size: 13))
             .foregroundStyle(.secondary)
+
+            // Keyword highlight editor
+            VStack(spacing: 8) {
+                Divider().frame(width: 200)
+                Label("Highlight Keywords", systemImage: "highlighter")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    TextField("Add keyword...", text: $newKeyword)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 160)
+                        .onSubmit { addKeyword() }
+                    Button(action: addKeyword) {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 16))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .disabled(newKeyword.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+                if !highlightKeywords.isEmpty {
+                    FlowLayout(spacing: 6) {
+                        ForEach(highlightKeywords, id: \.self) { keyword in
+                            HStack(spacing: 4) {
+                                Text(keyword)
+                                    .lineLimit(1)
+                                Button {
+                                    removeKeyword(keyword)
+                                } label: {
+                                    Image(systemName: "xmark")
+                                        .font(.system(size: 8, weight: .bold))
+                                }
+                                .buttonStyle(.plain)
+                                .foregroundStyle(.secondary)
+                            }
+                            .font(.system(size: 11))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(
+                                RoundedRectangle(cornerRadius: 4)
+                                    .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: [4, 2]))
+                                    .foregroundStyle(.orange.opacity(0.6))
+                            )
+                            .background(
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(.orange.opacity(0.1))
+                            )
+                        }
+                    }
+                    .frame(maxWidth: 300)
+                }
+            }
+
             Spacer()
             HStack(spacing: 4) {
                 Text("v1.3")
@@ -195,7 +250,7 @@ struct WelcomeView: View {
             .padding(.bottom, 12)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .frame(minWidth: 400, minHeight: 350)
+        .frame(minWidth: 400, minHeight: 420)
         .focusedSceneValue(\.openFileAction, openFile)
             .onAppear {
                 // Tag the welcome window so we can find it later
@@ -229,6 +284,19 @@ struct WelcomeView: View {
                 }
                 return true
             }
+    }
+
+    private func addKeyword() {
+        let trimmed = newKeyword.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty, !highlightKeywords.contains(where: { $0.caseInsensitiveCompare(trimmed) == .orderedSame }) else { return }
+        highlightKeywords.append(trimmed)
+        HighlightKeywords.save(highlightKeywords)
+        newKeyword = ""
+    }
+
+    private func removeKeyword(_ keyword: String) {
+        highlightKeywords.removeAll { $0 == keyword }
+        HighlightKeywords.save(highlightKeywords)
     }
 
     private func openFile() {
@@ -968,6 +1036,46 @@ struct TOCSidebar: View {
         }
         .frame(width: max(120, min(500, width)))
         .background(.background)
+    }
+}
+
+/// Horizontal flow layout that wraps items to the next line.
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 6
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxWidth = proposal.width ?? .infinity
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var rowHeight: CGFloat = 0
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x + size.width > maxWidth && x > 0 {
+                x = 0
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
+        return CGSize(width: maxWidth, height: y + rowHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x: CGFloat = bounds.minX
+        var y: CGFloat = bounds.minY
+        var rowHeight: CGFloat = 0
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x + size.width > bounds.maxX && x > bounds.minX {
+                x = bounds.minX
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            subview.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
     }
 }
 

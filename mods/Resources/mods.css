@@ -219,3 +219,17 @@ pre:hover .__mods-copy-btn { opacity: 1; }
 /* Scrollbar margin marks */
 #__mods-margin-marks { position: fixed; top: 0; right: 2px; width: 6px; height: 100vh; pointer-events: none; z-index: 99; }
 .__mods-margin-tick { position: absolute; width: 6px; height: 3px; border-radius: 1px; opacity: 0.8; }
+
+/* Keyword highlight */
+.__mods-keyword-hl {
+    border: 1.5px dashed #d97706;
+    border-radius: 4px;
+    background-color: rgba(251, 191, 36, 0.15);
+    padding: 1px 3px;
+}
+@media (prefers-color-scheme: dark) {
+    .__mods-keyword-hl {
+        border-color: #f59e0b;
+        background-color: rgba(251, 191, 36, 0.2);
+    }
+}
