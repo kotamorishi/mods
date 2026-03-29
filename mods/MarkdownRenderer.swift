@@ -73,13 +73,19 @@ struct MarkdownRenderer {
         guard html.contains("<h") else { return html }
         let nsHtml = html as NSString
         let range = NSRange(location: 0, length: nsHtml.length)
-        var counts: [String: Int] = [:]
-        var result = html
+        let matches = headingTagRegex.matches(in: html, range: range)
+        guard !matches.isEmpty else { return html }
 
-        for match in headingTagRegex.matches(in: html, range: range).reversed() {
+        var counts: [String: Int] = [:]
+        var result = ""
+        result.reserveCapacity(html.count + matches.count * 30)
+        var cursor = html.startIndex
+
+        for match in matches {
+            guard let matchRange = Range(match.range, in: html) else { continue }
+            result.append(contentsOf: html[cursor..<matchRange.lowerBound])
             let tag = nsHtml.substring(with: match.range(at: 1))
             let content = nsHtml.substring(with: match.range(at: 2))
-            // Generate slug from text content (strip HTML tags)
             let text = content.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
             var slug = text.lowercased()
                 .replacingOccurrences(of: "[^a-z0-9\\s-]", with: "", options: .regularExpression)
@@ -89,10 +95,10 @@ struct MarkdownRenderer {
             let count = counts[slug, default: 0]
             counts[slug] = count + 1
             let id = count == 0 ? slug : "\(slug)-\(count)"
-            let replacement = "<\(tag) id=\"\(id)\">\(content)</\(tag)>"
-            guard let swiftRange = Range(match.range, in: result) else { continue }
-            result.replaceSubrange(swiftRange, with: replacement)
+            result.append("<\(tag) id=\"\(id)\">\(content)</\(tag)>")
+            cursor = matchRange.upperBound
         }
+        result.append(contentsOf: html[cursor...])
         return result
     }
 
@@ -125,11 +131,16 @@ struct MarkdownRenderer {
         guard html.contains("<img") else { return html }
         let nsHtml = html as NSString
         let range = NSRange(location: 0, length: nsHtml.length)
-        let matches = externalImgRegex.matches(in: html, range: range).reversed()
+        let matches = externalImgRegex.matches(in: html, range: range)
+        guard !matches.isEmpty else { return html }
 
-        var result = html
+        var result = ""
+        result.reserveCapacity(html.count + matches.count * 200)
+        var cursor = html.startIndex
+
         for match in matches {
-            let fullRange = match.range
+            guard let matchRange = Range(match.range, in: html) else { continue }
+            result.append(contentsOf: html[cursor..<matchRange.lowerBound])
             let preAttrs = nsHtml.substring(with: match.range(at: 1))
             let url = nsHtml.substring(with: match.range(at: 3))
             let postAttrs = nsHtml.substring(with: match.range(at: 4))
@@ -138,19 +149,17 @@ struct MarkdownRenderer {
             let altMatch = altTextRegex.firstMatch(in: combined, range: NSRange(location: 0, length: combined.utf16.count))
             let altText = altMatch.map { (combined as NSString).substring(with: $0.range(at: 1)) } ?? "External image"
 
-            let placeholder = """
+            result.append("""
             <div class="blocked-image" data-img-src="\(escapeHTML(url))" data-img-pre="\(escapeHTML(preAttrs))" data-img-post="\(escapeHTML(postAttrs))">
             <span class="blocked-image-icon">🖼</span>
             <span class="blocked-image-label">\(escapeHTML(altText))</span>
             <span class="blocked-image-url">\(escapeHTML(url))</span>
             <span class="blocked-image-action">Click to load</span>
             </div>
-            """
-
-            guard let swiftRange = Range(fullRange, in: result) else { continue }
-            result.replaceSubrange(swiftRange, with: placeholder)
+            """)
+            cursor = matchRange.upperBound
         }
-
+        result.append(contentsOf: html[cursor...])
         return result
     }
 
@@ -178,24 +187,38 @@ struct MarkdownRenderer {
 
     private static func processAlerts(_ html: String) -> String {
         guard html.contains("<blockquote>") && html.contains("[!") else { return html }
-        var result = html
+
+        // Collect all alert matches across all types, sorted by position
+        let nsHtml = html as NSString
+        let fullRange = NSRange(location: 0, length: nsHtml.length)
+        var allMatches: [(match: NSTextCheckingResult, def: (regex: NSRegularExpression, cssClass: String, title: String))] = []
 
         for def in alertDefs {
-            var nsResult = result as NSString
-            var match = def.regex.firstMatch(in: result, range: NSRange(location: 0, length: nsResult.length))
-            while let m = match {
-                let content = nsResult.substring(with: m.range(at: 1))
-                let replacement = """
-                <div class="markdown-alert markdown-alert-\(def.cssClass)">
-                <p class="markdown-alert-title">\(def.title)</p>
-                \(content)</div>
-                """
-                nsResult = nsResult.replacingCharacters(in: m.range, with: replacement) as NSString
-                result = nsResult as String
-                match = def.regex.firstMatch(in: result, range: NSRange(location: 0, length: nsResult.length))
+            for m in def.regex.matches(in: html, range: fullRange) {
+                allMatches.append((m, def))
             }
         }
+        guard !allMatches.isEmpty else { return html }
+        allMatches.sort { $0.match.range.location < $1.match.range.location }
 
+        var result = ""
+        result.reserveCapacity(html.count + allMatches.count * 100)
+        var cursor = html.startIndex
+
+        for (m, def) in allMatches {
+            guard let matchRange = Range(m.range, in: html) else { continue }
+            // Skip overlapping matches
+            if matchRange.lowerBound < cursor { continue }
+            result.append(contentsOf: html[cursor..<matchRange.lowerBound])
+            let content = nsHtml.substring(with: m.range(at: 1))
+            result.append("""
+            <div class="markdown-alert markdown-alert-\(def.cssClass)">
+            <p class="markdown-alert-title">\(def.title)</p>
+            \(content)</div>
+            """)
+            cursor = matchRange.upperBound
+        }
+        result.append(contentsOf: html[cursor...])
         return result
     }
 
@@ -233,31 +256,32 @@ struct MarkdownRenderer {
         let map = emojiMap
         if map.isEmpty { return html }
 
-        // Strip out <code>...</code> and HTML tags to find safe replacement zones
-        // Strategy: replace emoji only in text nodes (outside tags and code elements)
         let nsHtml = html as NSString
         let fullRange = NSRange(location: 0, length: nsHtml.length)
 
         let codeRanges = codeBlockExcludeRegex.matches(in: html, range: fullRange).map { $0.range }
         let tagRanges = htmlTagExcludeRegex.matches(in: html, range: fullRange).map { $0.range }
-
         let excludedRanges = codeRanges + tagRanges
 
-        var result = html
-        // Process matches in reverse to preserve indices
-        let matches = emojiRegex.matches(in: html, range: fullRange).reversed()
+        let matches = emojiRegex.matches(in: html, range: fullRange)
+        guard !matches.isEmpty else { return html }
+
+        var result = ""
+        result.reserveCapacity(html.count)
+        var cursor = html.startIndex
+
         for match in matches {
             let matchRange = match.range
-            // Skip if inside an excluded range
             let isExcluded = excludedRanges.contains { NSIntersectionRange($0, matchRange).length > 0 }
             if isExcluded { continue }
 
             let name = nsHtml.substring(with: match.range(at: 1))
-            if let emoji = map[name], let swiftRange = Range(matchRange, in: result) {
-                result.replaceSubrange(swiftRange, with: emoji)
-            }
+            guard let emoji = map[name], let swiftRange = Range(matchRange, in: html) else { continue }
+            result.append(contentsOf: html[cursor..<swiftRange.lowerBound])
+            result.append(emoji)
+            cursor = swiftRange.upperBound
         }
-
+        result.append(contentsOf: html[cursor...])
         return result
     }
 
@@ -279,19 +303,25 @@ struct MarkdownRenderer {
         let pattern = "(" + escapedKeywords.joined(separator: "|") + ")"
         guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else { return html }
 
-        var result = html
-        let matches = regex.matches(in: html, range: fullRange).reversed()
+        let matches = regex.matches(in: html, range: fullRange)
+        guard !matches.isEmpty else { return html }
+
+        var result = ""
+        result.reserveCapacity(html.count + matches.count * 40)
+        var cursor = html.startIndex
+
         for match in matches {
             let matchRange = match.range
             let isExcluded = excludedRanges.contains { NSIntersectionRange($0, matchRange).length > 0 }
             if isExcluded { continue }
 
+            guard let swiftRange = Range(matchRange, in: html) else { continue }
+            result.append(contentsOf: html[cursor..<swiftRange.lowerBound])
             let matched = nsHtml.substring(with: matchRange)
-            let replacement = "<span class=\"__mods-keyword-hl\">\(matched)</span>"
-            guard let swiftRange = Range(matchRange, in: result) else { continue }
-            result.replaceSubrange(swiftRange, with: replacement)
+            result.append("<span class=\"__mods-keyword-hl\">\(matched)</span>")
+            cursor = swiftRange.upperBound
         }
-
+        result.append(contentsOf: html[cursor...])
         return result
     }
 

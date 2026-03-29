@@ -407,8 +407,9 @@ struct FileView: View {
     @State private var tocScrollTarget: String = ""
     @AppStorage("showTOC") private var showTOC: Bool = false
     @AppStorage("tocWidth") private var tocWidth: Double = 220
+    @State private var headings: [(level: Int, text: String, id: String)] = []
 
-    private var headings: [(level: Int, text: String, id: String)] {
+    private static func parseHeadings(_ markdown: String) -> [(level: Int, text: String, id: String)] {
         var counts: [String: Int] = [:]
         return markdown.components(separatedBy: "\n")
             .compactMap { line -> (Int, String, String)? in
@@ -474,7 +475,10 @@ struct FileView: View {
         .onSubmit(of: .search, submitSearch)
         .onChange(of: searchText) { onSearchTextChange() }
         .onChange(of: isSearching) { onSearchDismiss() }
-        .onChange(of: markdown) { updateSuggestions() }
+        .onChange(of: markdown) {
+            headings = Self.parseHeadings(markdown)
+            updateSuggestions()
+        }
     }
 
     private var contentArea: some View {
@@ -653,6 +657,7 @@ struct FileView: View {
         }
 
         self.markdown = HTMLBuilder.readFileWithFallback(url: url)
+        self.headings = Self.parseHeadings(markdown)
         startWatching(url)
     }
 

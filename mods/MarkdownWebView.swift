@@ -96,6 +96,7 @@ struct MarkdownWebView: NSViewRepresentable {
         var lastTOCTarget: String = ""
         var pendingKeywords: [String] = []
         var termsUpdateHandler: ((String) -> Void)?
+        var renderTask: Task<Void, Never>?
 
         @MainActor
         func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction) async -> WKNavigationActionPolicy {
@@ -190,12 +191,21 @@ struct MarkdownWebView: NSViewRepresentable {
 
         if context.coordinator.currentMarkdown != markdown {
             context.coordinator.currentMarkdown = markdown
+            let currentMarkdown = markdown
+            let restoreHighlights = !activeSearchTerms.isEmpty
 
-            if context.coordinator.isInitialLoadDone && !markdown.isEmpty {
-                updateContentViaJS(webView: webView, restoreHighlights: !activeSearchTerms.isEmpty)
-            } else if !markdown.isEmpty {
-                // First real content load — use loadHTMLString for full page setup
-                let bodyHTML = MarkdownRenderer.renderToHTML(markdown)
+            if context.coordinator.isInitialLoadDone && !currentMarkdown.isEmpty {
+                context.coordinator.renderTask?.cancel()
+                context.coordinator.renderTask = Task.detached(priority: .userInitiated) {
+                    let bodyHTML = MarkdownRenderer.renderToHTML(currentMarkdown)
+                    let postLoadJS = HTMLBuilder.conditionalJS(for: bodyHTML)
+                    await MainActor.run {
+                        self.updateContentViaJS(webView: webView, bodyHTML: bodyHTML, postLoadJS: postLoadJS, restoreHighlights: restoreHighlights)
+                    }
+                }
+            } else if !currentMarkdown.isEmpty {
+                // First real content load — synchronous for immediate display
+                let bodyHTML = MarkdownRenderer.renderToHTML(currentMarkdown)
                 let html = HTMLBuilder.buildHTML(bodyHTML: bodyHTML)
                 context.coordinator.lastHTML = html
                 context.coordinator.pendingPostLoadJS = HTMLBuilder.conditionalJS(for: bodyHTML)
@@ -364,8 +374,9 @@ struct MarkdownWebView: NSViewRepresentable {
         }
     }
 
-    private func updateContentViaJS(webView: WKWebView, restoreHighlights: Bool = false) {
-        let bodyHTML = MarkdownRenderer.renderToHTML(markdown)
+    private func updateContentViaJS(webView: WKWebView, bodyHTML: String? = nil, postLoadJS: String? = nil, restoreHighlights: Bool = false) {
+        let bodyHTML = bodyHTML ?? MarkdownRenderer.renderToHTML(markdown)
+        let postLoadJS = postLoadJS ?? HTMLBuilder.conditionalJS(for: bodyHTML)
 
         // Save the nearest visible heading before updating content,
         // then restore scroll position to that heading after update.
@@ -387,7 +398,7 @@ struct MarkdownWebView: NSViewRepresentable {
 
             // Update content
             document.getElementById('content').innerHTML = \(HTMLBuilder.jsonEncode(bodyHTML));
-            \(HTMLBuilder.conditionalJS(for: bodyHTML))
+            \(postLoadJS)
 
             // Restore position
             if (marker) {
