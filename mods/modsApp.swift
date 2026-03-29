@@ -5,6 +5,11 @@ import UniformTypeIdentifiers
 class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSWindow.allowsAutomaticWindowTabbing = true
+        // Set tabbingMode on all new windows so they open as tabs automatically
+        NotificationCenter.default.addObserver(forName: NSWindow.didBecomeKeyNotification, object: nil, queue: .main) { note in
+            guard let window = note.object as? NSWindow else { return }
+            window.tabbingMode = .preferred
+        }
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
@@ -52,18 +57,7 @@ struct modsApp: App {
                 FileView(initialURL: url)
                     .onReceive(NotificationCenter.default.publisher(for: .openFileFromFinder)) { notification in
                         if let fileURL = notification.object as? URL {
-                            let sourceWindow = notification.userInfo?["sourceWindow"] as? NSWindow
-                            let existingWindows = Set(NSApp.windows)
                             openWindow(value: fileURL)
-                            // Add new window as tab of source window
-                            if let sourceWindow {
-                                DispatchQueue.main.async {
-                                    if let newWindow = NSApp.windows.first(where: { !existingWindows.contains($0) && $0.isVisible }) {
-                                        sourceWindow.addTabbedWindow(newWindow, ordered: .above)
-                                        newWindow.makeKeyAndOrderFront(nil)
-                                    }
-                                }
-                            }
                         }
                     }
             }
