@@ -75,7 +75,7 @@ struct modsApp: App {
                 .onReceive(NotificationCenter.default.publisher(for: .openFileFromFinder)) { notification in
                     if let url = notification.object as? URL {
                         openWindow(value: url)
-                        dismissWindow(id: "welcome")
+                        DispatchQueue.main.async { WelcomeView.closeWelcomeWindow() }
                     }
                 }
         }
@@ -170,18 +170,24 @@ struct WelcomeView: View {
             .frame(minWidth: 400, minHeight: 300)
             .focusedSceneValue(\.openFileAction, openFile)
             .onAppear {
+                // Tag the welcome window so we can find it later
+                DispatchQueue.main.async {
+                    NSApp.keyWindow?.identifier = NSUserInterfaceItemIdentifier("welcome")
+                }
                 let pending = AppDelegate.pendingURLs
                 AppDelegate.pendingURLs = []
-                for url in pending {
-                    openWindow(value: url)
-                }
                 if !pending.isEmpty {
-                    dismissWindow(id: "welcome")
+                    for url in pending {
+                        openWindow(value: url)
+                    }
+                    DispatchQueue.main.async {
+                        Self.closeWelcomeWindow()
+                    }
                 }
             }
             .onOpenURL { url in
                 openWindow(value: Self.resolveURL(url))
-                dismissWindow(id: "welcome")
+                DispatchQueue.main.async { Self.closeWelcomeWindow() }
             }
             .onDrop(of: [.fileURL], isTargeted: nil) { providers in
                 guard let provider = providers.first else { return false }
@@ -189,7 +195,7 @@ struct WelcomeView: View {
                     if let url, URLValidator.isSafe(url) {
                         DispatchQueue.main.async {
                             openWindow(value: url)
-                            dismissWindow(id: "welcome")
+                            DispatchQueue.main.async { Self.closeWelcomeWindow() }
                         }
                     }
                 }
@@ -203,7 +209,13 @@ struct WelcomeView: View {
             openWindow(value: url)
         }
         if !urls.isEmpty {
-            dismissWindow(id: "welcome")
+            DispatchQueue.main.async { Self.closeWelcomeWindow() }
+        }
+    }
+
+    static func closeWelcomeWindow() {
+        for window in NSApp.windows where window.identifier?.rawValue == "welcome" {
+            window.close()
         }
     }
 
