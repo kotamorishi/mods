@@ -94,6 +94,8 @@ struct MarkdownWebView: NSViewRepresentable {
         var lastPrintTrigger: Int = 0
         var lastExportPDFTrigger: Int = 0
         var lastTOCTarget: String = ""
+        var pendingKeywords: [String] = []
+        var termsUpdateHandler: ((String) -> Void)?
 
         @MainActor
         func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction) async -> WKNavigationActionPolicy {
@@ -114,6 +116,25 @@ struct MarkdownWebView: NSViewRepresentable {
                 webView.evaluateJavaScript(pendingPostLoadJS)
                 pendingPostLoadJS = ""
             }
+            if !pendingKeywords.isEmpty {
+                let js = Self.buildKeywordJS(pendingKeywords)
+                pendingKeywords = []
+                webView.evaluateJavaScript(js) { [weak self] result, _ in
+                    if let json = result as? String {
+                        self?.termsUpdateHandler?(json)
+                    }
+                }
+            }
+        }
+
+        static func buildKeywordJS(_ keywords: [String]) -> String {
+            var js = ""
+            for keyword in keywords {
+                let encoded = HTMLBuilder.jsonEncode(keyword)
+                js += "window.__modsSearch.add(\(encoded), false, false);\n"
+            }
+            js += "window.__modsSearch.getTerms()"
+            return js
         }
 
         func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
@@ -144,12 +165,16 @@ struct MarkdownWebView: NSViewRepresentable {
         controller.removeScriptMessageHandler(forName: "loadImage")
         controller.add(context.coordinator, name: "loadImage")
         context.coordinator.currentMarkdown = markdown
+        context.coordinator.termsUpdateHandler = { [self] json in
+            self.updateActiveTerms(from: json)
+        }
 
         if !markdown.isEmpty {
             let bodyHTML = MarkdownRenderer.renderToHTML(markdown)
             let html = HTMLBuilder.buildHTML(bodyHTML: bodyHTML)
             context.coordinator.lastHTML = html
             context.coordinator.pendingPostLoadJS = HTMLBuilder.conditionalJS(for: bodyHTML)
+            context.coordinator.pendingKeywords = HighlightKeywords.keywords()
             context.coordinator.isInitialLoadDone = true
             webView.loadHTMLString(html, baseURL: nil)
         }
@@ -174,6 +199,7 @@ struct MarkdownWebView: NSViewRepresentable {
                 let html = HTMLBuilder.buildHTML(bodyHTML: bodyHTML)
                 context.coordinator.lastHTML = html
                 context.coordinator.pendingPostLoadJS = HTMLBuilder.conditionalJS(for: bodyHTML)
+                context.coordinator.pendingKeywords = HighlightKeywords.keywords()
                 context.coordinator.isInitialLoadDone = true
                 webView.loadHTMLString(html, baseURL: nil)
             }
@@ -388,10 +414,22 @@ struct MarkdownWebView: NSViewRepresentable {
         """
 
         webView.evaluateJavaScript(js) { _, _ in
+            let addKeywords = {
+                let keywords = HighlightKeywords.keywords()
+                guard !keywords.isEmpty else { return }
+                let kwJS = Coordinator.buildKeywordJS(keywords)
+                webView.evaluateJavaScript(kwJS) { result, _ in
+                    if let json = result as? String { self.updateActiveTerms(from: json) }
+                }
+            }
+
             if restoreHighlights {
                 webView.evaluateJavaScript("window.__modsSearch._rebuildAll(); window.__modsSearch.getTerms()") { result, _ in
                     if let json = result as? String { self.updateActiveTerms(from: json) }
+                    addKeywords()
                 }
+            } else {
+                addKeywords()
             }
         }
     }
