@@ -247,7 +247,7 @@ struct WelcomeView: View {
             if !trustedDomains.isEmpty {
                 VStack(spacing: 8) {
                     Divider().frame(width: 200)
-                    Label("Always Trust This Domain", systemImage: "shield.checkered")
+                    Label("Auto-Load Images From", systemImage: "photo.badge.checkmark")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.secondary)
                     FlowLayout(spacing: 6) {
