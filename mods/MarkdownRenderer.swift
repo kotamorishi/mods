@@ -285,12 +285,17 @@ struct MarkdownRenderer {
     }
 }
 
-/// Manages user-defined highlight keywords stored in UserDefaults.
+/// Manages user-defined highlight keywords stored in shared UserDefaults (App Group).
 enum HighlightKeywords {
     private static let key = "highlightKeywords"
+    private static let suiteName = "group.com.kotamorishita.mods"
+
+    private static var defaults: UserDefaults {
+        UserDefaults(suiteName: suiteName) ?? .standard
+    }
 
     static func keywords() -> [String] {
-        guard let data = UserDefaults.standard.string(forKey: key)?.data(using: .utf8),
+        guard let data = defaults.string(forKey: key)?.data(using: .utf8),
               let array = try? JSONDecoder().decode([String].self, from: data) else { return [] }
         return array
     }
@@ -298,7 +303,7 @@ enum HighlightKeywords {
     static func save(_ keywords: [String]) {
         if let data = try? JSONEncoder().encode(keywords),
            let json = String(data: data, encoding: .utf8) {
-            UserDefaults.standard.set(json, forKey: key)
+            defaults.set(json, forKey: key)
         }
     }
 }
