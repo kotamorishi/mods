@@ -684,30 +684,35 @@ enum TrustedImageDomains {
     private static let key = "trustedImageDomains"
     private static let suiteName = "group.com.kotamorishita.mods"
 
-    private static var defaults: UserDefaults {
-        UserDefaults(suiteName: suiteName) ?? .standard
+    private static var sharedDefaults: UserDefaults? {
+        UserDefaults(suiteName: suiteName)
     }
 
     static func trustedDomains() -> Set<String> {
-        // Migrate from old UserDefaults.standard to shared suite (one-time)
-        if defaults.stringArray(forKey: key) == nil,
-           let old = UserDefaults.standard.stringArray(forKey: key) {
-            defaults.set(old, forKey: key)
-            UserDefaults.standard.removeObject(forKey: key)
+        // Read from shared App Group first, fall back to standard
+        if let domains = sharedDefaults?.stringArray(forKey: key), !domains.isEmpty {
+            return Set(domains)
         }
-        return Set(defaults.stringArray(forKey: key) ?? [])
+        return Set(UserDefaults.standard.stringArray(forKey: key) ?? [])
+    }
+
+    private static func saveDomains(_ domains: Set<String>) {
+        let array = Array(domains)
+        // Write to both so it works regardless of App Group access
+        sharedDefaults?.set(array, forKey: key)
+        UserDefaults.standard.set(array, forKey: key)
     }
 
     static func addDomain(_ domain: String) {
         var domains = trustedDomains()
         domains.insert(domain)
-        defaults.set(Array(domains), forKey: key)
+        saveDomains(domains)
     }
 
     static func removeDomain(_ domain: String) {
         var domains = trustedDomains()
         domains.remove(domain)
-        defaults.set(Array(domains), forKey: key)
+        saveDomains(domains)
     }
 
     private static func domain(from urlString: String) -> String? {
