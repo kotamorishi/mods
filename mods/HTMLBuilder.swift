@@ -312,6 +312,9 @@ enum HTMLBuilder {
                 nodes.forEach(function(node) {
                     if (count >= MAX_MATCHES) return;
                     if (node.parentNode && node.parentNode.closest && node.parentNode.closest('.__mods-highlight')) return;
+                    var p = node.parentElement;
+                    if (p && p.closest && p.closest('script, style, svg, .mermaid, pre code.language-mermaid, [hidden]')) return;
+                    if (p && p.offsetParent === null && p.tagName !== 'BODY' && p.tagName !== 'HTML') return;
                     var text = node.textContent;
                     var haystack = entry.caseSensitive ? text : text.toLowerCase();
                     var idx = haystack.indexOf(searchTerm);
