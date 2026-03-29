@@ -296,6 +296,9 @@ struct WelcomeView: View {
         .frame(minWidth: 400, minHeight: 420)
         .focusedSceneValue(\.openFileAction, openFile)
             .onAppear {
+                // Refresh state from UserDefaults
+                highlightKeywords = HighlightKeywords.keywords()
+                trustedDomains = Array(TrustedImageDomains.trustedDomains()).sorted()
                 // Tag the welcome window so we can find it later
                 DispatchQueue.main.async {
                     NSApp.keyWindow?.identifier = NSUserInterfaceItemIdentifier("welcome")
