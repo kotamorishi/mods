@@ -193,6 +193,9 @@ struct WelcomeView: View {
                 Label("Highlight Keywords", systemImage: "highlighter")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.secondary)
+                Text("Shared with QuickLook")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
                 HStack(spacing: 6) {
                     TextField("Add keyword...", text: $newKeyword)
                         .textFieldStyle(.roundedBorder)
