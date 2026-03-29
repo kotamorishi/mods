@@ -3,14 +3,28 @@ import UniformTypeIdentifiers
 
 /// Handles file open events from Finder (double-click, "Open With").
 class AppDelegate: NSObject, NSApplicationDelegate {
+    @MainActor static var pendingURLs: [URL] = []
+    private var didFinishLaunch = false
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSWindow.allowsAutomaticWindowTabbing = true
         NSWindow.installTabbingSwizzle()
+        didFinishLaunch = true
+        // Open any URLs that arrived before launch finished
+        let urls = Self.pendingURLs
+        Self.pendingURLs = []
+        for url in urls {
+            NotificationCenter.default.post(name: .openFileFromFinder, object: url)
+        }
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
-        for url in urls {
-            NotificationCenter.default.post(name: .openFileFromFinder, object: url)
+        if didFinishLaunch {
+            for url in urls {
+                NotificationCenter.default.post(name: .openFileFromFinder, object: url)
+            }
+        } else {
+            Self.pendingURLs.append(contentsOf: urls)
         }
     }
 }
@@ -155,6 +169,16 @@ struct WelcomeView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .frame(minWidth: 400, minHeight: 300)
             .focusedSceneValue(\.openFileAction, openFile)
+            .onAppear {
+                let pending = AppDelegate.pendingURLs
+                AppDelegate.pendingURLs = []
+                for url in pending {
+                    openWindow(value: url)
+                }
+                if !pending.isEmpty {
+                    dismissWindow(id: "welcome")
+                }
+            }
             .onOpenURL { url in
                 openWindow(value: Self.resolveURL(url))
                 dismissWindow(id: "welcome")

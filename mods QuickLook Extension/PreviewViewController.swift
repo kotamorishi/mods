@@ -6,12 +6,24 @@ import WebKit
 class PreviewViewController: NSViewController, QLPreviewingController, WKNavigationDelegate, WKScriptMessageHandler {
     var webView: WKWebView!
     var pendingPostLoadJS: String = ""
+    private var handlerRegistered = false
 
     override func loadView() {
-        webView = WKWebView(frame: .zero, configuration: HTMLBuilder.webViewConfiguration())
+        let config = WKWebViewConfiguration()
+        config.defaultWebpagePreferences.allowsContentJavaScript = false
+        config.preferences.isElementFullscreenEnabled = false
+        let controller = WKUserContentController()
+        let highlightJS = HTMLBuilder.cachedResource("highlight.min", type: "js")
+        if !highlightJS.isEmpty {
+            controller.addUserScript(WKUserScript(source: highlightJS, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
+        }
+        controller.addUserScript(WKUserScript(source: HTMLBuilder.postProcessScript, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
+        controller.add(self, name: "loadImage")
+        config.userContentController = controller
+
+        webView = WKWebView(frame: .zero, configuration: config)
         webView.autoresizingMask = [.width, .height]
         webView.navigationDelegate = self
-        webView.configuration.userContentController.add(self, name: "loadImage")
         self.view = webView
     }
 
@@ -51,6 +63,7 @@ class PreviewViewController: NSViewController, QLPreviewingController, WKNavigat
             let bodyHTML = MarkdownRenderer.renderToHTML("# File too large\n\nThis file is \(sizeMB) MB. Maximum supported size is 10 MB.")
             let html = HTMLBuilder.buildHTML(bodyHTML: bodyHTML)
             DispatchQueue.main.async { [self] in
+                pendingPostLoadJS = ""
                 webView.loadHTMLString(html, baseURL: nil)
             }
             handler(nil)
