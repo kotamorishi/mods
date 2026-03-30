@@ -487,6 +487,7 @@ struct FileView: View {
                 TOCSidebar(headings: headings, zoomLevel: zoomLevel, width: tocWidth) { heading in
                     tocScrollTarget = heading
                 }
+                .frame(width: max(120, min(500, tocWidth)))
                 ResizableHandle(width: $tocWidth)
             }
             markdownWebView
@@ -1034,66 +1035,149 @@ extension View {
     }
 }
 
-struct TOCSidebar: View {
+struct TOCSidebar: NSViewRepresentable {
     let headings: [(level: Int, text: String, id: String)]
     let zoomLevel: Double
     let width: Double
     let onSelect: (String) -> Void
 
-    private static let dotSizes: [CGFloat] = [8, 7, 6, 5, 4, 4]
-    private static let dotColors: [Color] = [
-        Color(red: 0.85, green: 0.25, blue: 0.25),  // red
-        Color(red: 0.20, green: 0.55, blue: 0.95),  // blue
-        Color(red: 0.25, green: 0.72, blue: 0.35),  // green
-        Color(red: 0.93, green: 0.60, blue: 0.15),  // orange
-        Color(red: 0.62, green: 0.42, blue: 0.90),  // purple
-        Color(red: 0.15, green: 0.72, blue: 0.72),  // teal
+    static let dotColors: [NSColor] = [
+        NSColor(red: 0.85, green: 0.25, blue: 0.25, alpha: 1),
+        NSColor(red: 0.20, green: 0.55, blue: 0.95, alpha: 1),
+        NSColor(red: 0.25, green: 0.72, blue: 0.35, alpha: 1),
+        NSColor(red: 0.93, green: 0.60, blue: 0.15, alpha: 1),
+        NSColor(red: 0.62, green: 0.42, blue: 0.90, alpha: 1),
+        NSColor(red: 0.15, green: 0.72, blue: 0.72, alpha: 1),
     ]
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("OUTLINE")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.tertiary)
-                Spacer()
-            }
-            .padding(.horizontal, 12)
-            .padding(.top, 8)
-            .padding(.bottom, 4)
+    func makeCoordinator() -> TOCCoordinator {
+        TOCCoordinator(onSelect: onSelect)
+    }
 
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 1) {
-                    ForEach(Array(headings.enumerated()), id: \.offset) { _, heading in
-                        Button {
-                            onSelect(heading.id)
-                        } label: {
-                            HStack(spacing: 6) {
-                                Circle()
-                                    .fill(Self.dotColors[min(heading.level - 1, 5)])
-                                    .frame(width: Self.dotSizes[min(heading.level - 1, 5)],
-                                           height: Self.dotSizes[min(heading.level - 1, 5)])
-                                Text(heading.text)
-                                    .font(.system(size: (heading.level <= 2 ? 12 : 11) * zoomLevel,
-                                                  weight: heading.level <= 1 ? .semibold : .regular))
-                                    .foregroundStyle(heading.level <= 2 ? .primary : .secondary)
-                                    .lineLimit(1)
-                                    .truncationMode(.tail)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.leading, CGFloat((heading.level - 1) * 12))
-                            .padding(.vertical, 3)
-                            .padding(.horizontal, 12)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.bottom, 8)
-            }
+    func makeNSView(context: Context) -> NSView {
+        let container = NSView()
+
+        let label = NSTextField(labelWithString: "OUTLINE")
+        label.font = .systemFont(ofSize: 11, weight: .semibold)
+        label.textColor = .tertiaryLabelColor
+        label.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(label)
+
+        let scrollView = NSScrollView()
+        scrollView.hasVerticalScroller = true
+        scrollView.autohidesScrollers = true
+        scrollView.drawsBackground = false
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+
+        let tableView = NSTableView()
+        tableView.headerView = nil
+        tableView.rowHeight = 24
+        tableView.intercellSpacing = NSSize(width: 0, height: 1)
+        tableView.backgroundColor = .clear
+        tableView.style = .plain
+        tableView.selectionHighlightStyle = .none
+        let col = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("heading"))
+        col.resizingMask = .autoresizingMask
+        tableView.addTableColumn(col)
+        tableView.delegate = context.coordinator
+        tableView.dataSource = context.coordinator
+        tableView.target = context.coordinator
+        tableView.action = #selector(TOCCoordinator.tableClicked(_:))
+
+        scrollView.documentView = tableView
+        container.addSubview(scrollView)
+
+        NSLayoutConstraint.activate([
+            label.topAnchor.constraint(equalTo: container.topAnchor, constant: 8),
+            label.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 12),
+            label.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -12),
+            scrollView.topAnchor.constraint(equalTo: label.bottomAnchor, constant: 4),
+            scrollView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+        ])
+
+        context.coordinator.tableView = tableView
+        context.coordinator.headings = headings
+        context.coordinator.zoomLevel = zoomLevel
+        tableView.reloadData()
+
+        container.setFrameSize(NSSize(width: max(120, min(500, width)), height: 400))
+        return container
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        let coord = context.coordinator
+        coord.onSelect = onSelect
+        let needsReload = coord.headings.count != headings.count || coord.zoomLevel != zoomLevel
+        coord.headings = headings
+        coord.zoomLevel = zoomLevel
+        if needsReload {
+            coord.tableView?.reloadData()
         }
-        .frame(width: max(120, min(500, width)))
-        .background(.background)
+        nsView.setFrameSize(NSSize(width: max(120, min(500, width)), height: nsView.frame.height))
+    }
+
+    class TOCCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource {
+        var headings: [(level: Int, text: String, id: String)] = []
+        var zoomLevel: Double = 1.0
+        var onSelect: (String) -> Void
+        weak var tableView: NSTableView?
+
+        init(onSelect: @escaping (String) -> Void) {
+            self.onSelect = onSelect
+        }
+
+        func numberOfRows(in tableView: NSTableView) -> Int { headings.count }
+
+        func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+            let heading = headings[row]
+            let cellID = NSUserInterfaceItemIdentifier("TOCCell")
+            let cell: NSTableCellView
+            if let reused = tableView.makeView(withIdentifier: cellID, owner: nil) as? NSTableCellView {
+                cell = reused
+                // Update existing subviews
+                if let dot = cell.subviews.first(where: { $0.accessibilityIdentifier() == "dot" }) {
+                    let dotSize = [8.0, 7, 6, 5, 4, 4][min(heading.level - 1, 5)]
+                    dot.frame = NSRect(x: CGFloat((heading.level - 1) * 12) + 12, y: (24 - dotSize) / 2, width: dotSize, height: dotSize)
+                    dot.wantsLayer = true
+                    dot.layer?.backgroundColor = TOCSidebar.dotColors[min(heading.level - 1, 5)].cgColor
+                }
+                if let tf = cell.textField {
+                    tf.stringValue = heading.text
+                    tf.font = .systemFont(ofSize: (heading.level <= 2 ? 12 : 11) * zoomLevel, weight: heading.level <= 1 ? .semibold : .regular)
+                    tf.textColor = heading.level <= 2 ? .labelColor : .secondaryLabelColor
+                    tf.frame.origin.x = CGFloat((heading.level - 1) * 12) + 12 + [8.0, 7, 6, 5, 4, 4][min(heading.level - 1, 5)] + 6
+                }
+            } else {
+                cell = NSTableCellView()
+                cell.identifier = cellID
+
+                let dotSize = [8.0, 7, 6, 5, 4, 4][min(heading.level - 1, 5)]
+                let dot = NSView(frame: NSRect(x: CGFloat((heading.level - 1) * 12) + 12, y: (24 - dotSize) / 2, width: dotSize, height: dotSize))
+                dot.wantsLayer = true
+                dot.layer?.cornerRadius = dotSize / 2
+                dot.layer?.backgroundColor = TOCSidebar.dotColors[min(heading.level - 1, 5)].cgColor
+                dot.setAccessibilityIdentifier("dot")
+                cell.addSubview(dot)
+
+                let tf = NSTextField(labelWithString: heading.text)
+                tf.font = .systemFont(ofSize: (heading.level <= 2 ? 12 : 11) * zoomLevel, weight: heading.level <= 1 ? .semibold : .regular)
+                tf.textColor = heading.level <= 2 ? .labelColor : .secondaryLabelColor
+                tf.lineBreakMode = .byTruncatingTail
+                tf.frame = NSRect(x: CGFloat((heading.level - 1) * 12) + 12 + dotSize + 6, y: 2, width: 1000, height: 20)
+                tf.autoresizingMask = [.width]
+                cell.textField = tf
+                cell.addSubview(tf)
+            }
+            return cell
+        }
+
+        @objc func tableClicked(_ sender: NSTableView) {
+            let row = sender.clickedRow
+            guard row >= 0, row < headings.count else { return }
+            onSelect(headings[row].id)
+        }
     }
 }
 
