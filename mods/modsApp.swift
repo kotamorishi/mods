@@ -408,6 +408,9 @@ struct FileView: View {
     @AppStorage("showTOC") private var showTOC: Bool = false
     @AppStorage("tocWidth") private var tocWidth: Double = 220
     @State private var headings: [(level: Int, text: String, id: String)] = []
+    @State private var pages: [String] = []
+    @State private var currentPage: Int = 0
+    @State private var currentPageHTML: String = ""
 
     private static func parseHeadings(_ markdown: String) -> [(level: Int, text: String, id: String)] {
         var counts: [String: Int] = [:]
@@ -477,6 +480,7 @@ struct FileView: View {
         .onChange(of: isSearching) { onSearchDismiss() }
         .onChange(of: markdown) {
             headings = Self.parseHeadings(markdown)
+            paginateMarkdown()
             updateSuggestions()
         }
     }
@@ -485,7 +489,7 @@ struct FileView: View {
         HStack(spacing: 0) {
             if showTOC && !headings.isEmpty {
                 TOCSidebar(headings: headings, zoomLevel: zoomLevel, width: tocWidth) { heading in
-                    tocScrollTarget = heading
+                    navigateToHeading(heading)
                 }
                 .frame(width: max(120, min(500, tocWidth)))
                 ResizableHandle(width: $tocWidth)
@@ -533,6 +537,23 @@ struct FileView: View {
     private var statusBar: some View {
         HStack(spacing: 8) {
             Text("\(wordCount) words")
+            if pages.count > 1 {
+                Divider().frame(height: 12)
+                Button { goToPage(currentPage - 1) } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 9, weight: .semibold))
+                }
+                .buttonStyle(.plain)
+                .disabled(currentPage <= 0)
+                Text("\(currentPage + 1)/\(pages.count)")
+                    .monospacedDigit()
+                Button { goToPage(currentPage + 1) } label: {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 9, weight: .semibold))
+                }
+                .buttonStyle(.plain)
+                .disabled(currentPage >= pages.count - 1)
+            }
             Spacer()
             if let fileURL {
                 Text(fileURL.deletingLastPathComponent().path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
@@ -560,7 +581,7 @@ struct FileView: View {
     }
 
     private var markdownWebView: some View {
-        MarkdownWebView(markdown: markdown, zoomLevel: zoomLevel, search: search, activeSearchTerms: $activeSearchTerms, searchStack: $searchStack, printTrigger: printTrigger, exportPDFTrigger: exportPDFTrigger, tocScrollTarget: tocScrollTarget)
+        MarkdownWebView(markdown: currentPageHTML.isEmpty ? markdown : currentPageHTML, zoomLevel: zoomLevel, search: search, activeSearchTerms: $activeSearchTerms, searchStack: $searchStack, printTrigger: printTrigger, exportPDFTrigger: exportPDFTrigger, tocScrollTarget: tocScrollTarget)
     }
 
     private var filteredSuggestions: [String] {
@@ -659,7 +680,91 @@ struct FileView: View {
 
         self.markdown = HTMLBuilder.readFileWithFallback(url: url)
         self.headings = Self.parseHeadings(markdown)
+        paginateMarkdown()
         startWatching(url)
+    }
+
+    /// Split markdown into pages by top-level headings for large files.
+    private static let markdownHeadingRegex = try! NSRegularExpression(pattern: "(?m)^#{1,2}\\s+")
+    private static let paginationThreshold = 200_000
+
+    private func paginateMarkdown() {
+        guard markdown.count > Self.paginationThreshold else {
+            pages = []
+            currentPage = 0
+            currentPageHTML = ""
+            return
+        }
+
+        let nsMarkdown = markdown as NSString
+        let fullRange = NSRange(location: 0, length: nsMarkdown.length)
+        let matches = Self.markdownHeadingRegex.matches(in: markdown, range: fullRange)
+
+        guard matches.count > 1 else {
+            pages = []
+            currentPage = 0
+            currentPageHTML = ""
+            return
+        }
+
+        var newPages: [String] = []
+        var cursor = markdown.startIndex
+
+        for (i, match) in matches.enumerated() {
+            guard let pos = Range(match.range, in: markdown) else { continue }
+            if i == 0 {
+                if pos.lowerBound > markdown.startIndex {
+                    // Content before first heading — include in first page
+                    cursor = markdown.startIndex
+                }
+                continue
+            }
+            let page = String(markdown[cursor..<pos.lowerBound])
+            if !page.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                newPages.append(page)
+            }
+            cursor = pos.lowerBound
+        }
+        let lastPage = String(markdown[cursor...])
+        if !lastPage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            newPages.append(lastPage)
+        }
+
+        pages = newPages
+        currentPage = 0
+        currentPageHTML = pages.first ?? ""
+    }
+
+    private func goToPage(_ page: Int) {
+        guard !pages.isEmpty, page >= 0, page < pages.count else { return }
+        currentPage = page
+        currentPageHTML = pages[page]
+    }
+
+    /// Find which page contains a heading ID and navigate to it.
+    private func navigateToHeading(_ headingID: String) {
+        guard !pages.isEmpty else {
+            tocScrollTarget = headingID
+            return
+        }
+        // Find which page contains this heading
+        for (i, page) in pages.enumerated() {
+            let pageHeadings = Self.parseHeadings(page)
+            if pageHeadings.contains(where: { $0.id == headingID }) {
+                if currentPage != i {
+                    goToPage(i)
+                    // Delay scroll to allow page to render
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        self.tocScrollTarget = headingID
+                    }
+                } else {
+                    tocScrollTarget = headingID
+                }
+                return
+            }
+        }
+        // Fallback
+        tocScrollTarget = headingID
     }
 
     private func startWatching(_ url: URL) {

@@ -290,7 +290,7 @@ struct MarkdownWebView: NSViewRepresentable {
             let js = """
             (function() {
                 var el = document.getElementById(\(jsonTarget));
-                if (el) el.scrollIntoView({ behavior: 'instant', block: 'start' });
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
             })();
             """
             webView.evaluateJavaScript(js)

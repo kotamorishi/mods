@@ -642,6 +642,72 @@ enum HTMLBuilder {
     /// Build a complete HTML page from rendered markdown body.
     /// Note: no inline <script> tags — JS is disabled at page level.
     /// Mermaid/KaTeX are injected post-load via evaluateJavaScript().
+    /// Split bodyHTML into pages by h1/h2 boundaries. Only activates for large content.
+    static func splitIntoPages(_ bodyHTML: String, maxSize: Int = 100_000) -> [String] {
+        guard bodyHTML.count > maxSize else { return [bodyHTML] }
+
+        // Find all h1/h2 tag positions
+        let pattern = try! NSRegularExpression(pattern: "<h[12][ >]", options: .caseInsensitive)
+        let nsHTML = bodyHTML as NSString
+        let fullRange = NSRange(location: 0, length: nsHTML.length)
+        let matches = pattern.matches(in: bodyHTML, range: fullRange)
+
+        guard matches.count > 1 else {
+            // No h1/h2 to split on — split by size
+            return splitBySize(bodyHTML, maxSize: maxSize)
+        }
+
+        var pages: [String] = []
+        var cursor = bodyHTML.startIndex
+
+        for (i, match) in matches.enumerated() {
+            if i == 0 {
+                // Content before first heading
+                if let pos = Range(match.range, in: bodyHTML), pos.lowerBound > bodyHTML.startIndex {
+                    let prefix = String(bodyHTML[bodyHTML.startIndex..<pos.lowerBound])
+                    if !prefix.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        // Prepend to first page rather than making a tiny page
+                        cursor = bodyHTML.startIndex
+                    } else {
+                        cursor = pos.lowerBound
+                    }
+                }
+                continue
+            }
+            guard let pos = Range(match.range, in: bodyHTML) else { continue }
+            let page = String(bodyHTML[cursor..<pos.lowerBound])
+            if !page.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                pages.append(page)
+            }
+            cursor = pos.lowerBound
+        }
+        // Last page
+        let lastPage = String(bodyHTML[cursor...])
+        if !lastPage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            pages.append(lastPage)
+        }
+
+        return pages.isEmpty ? [bodyHTML] : pages
+    }
+
+    private static func splitBySize(_ html: String, maxSize: Int) -> [String] {
+        var pages: [String] = []
+        var start = html.startIndex
+        while start < html.endIndex {
+            var end = html.index(start, offsetBy: maxSize, limitedBy: html.endIndex) ?? html.endIndex
+            // Try to split at a paragraph boundary
+            if end < html.endIndex {
+                let searchRange = start..<end
+                if let lastP = html.range(of: "</p>", options: .backwards, range: searchRange) {
+                    end = lastP.upperBound
+                }
+            }
+            pages.append(String(html[start..<end]))
+            start = end
+        }
+        return pages
+    }
+
     static func buildHTML(bodyHTML: String) -> String {
         // KaTeX CSS is safe (not script), include it if needed
         var extraCSS = ""
