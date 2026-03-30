@@ -1210,6 +1210,7 @@ struct TOCSidebar: NSViewRepresentable {
         context.coordinator.tableView = tableView
         context.coordinator.headings = headings
         context.coordinator.zoomLevel = zoomLevel
+        context.coordinator.rebuildCache()
         tableView.reloadData()
 
         container.setFrameSize(NSSize(width: max(120, min(500, width)), height: 400))
@@ -1222,6 +1223,7 @@ struct TOCSidebar: NSViewRepresentable {
         if coord.headings.count != headings.count || coord.zoomLevel != zoomLevel {
             coord.headings = headings
             coord.zoomLevel = zoomLevel
+            coord.rebuildCache()
             coord.tableView?.reloadData()
         }
     }
@@ -1231,54 +1233,55 @@ struct TOCSidebar: NSViewRepresentable {
         var zoomLevel: Double = 1.0
         var onSelect: (String) -> Void
         weak var tableView: NSTableView?
+        /// Pre-built attributed strings for each heading, rebuilt on data change.
+        var cachedStrings: [NSAttributedString] = []
 
         init(onSelect: @escaping (String) -> Void) {
             self.onSelect = onSelect
         }
 
+        func rebuildCache() {
+            cachedStrings = headings.map { heading in
+                let indent = String(repeating: "  ", count: heading.level - 1)
+                let dot = "●"
+                let color = TOCSidebar.dotColors[min(heading.level - 1, 5)]
+                let fontSize = (heading.level <= 2 ? 12.0 : 11.0) * zoomLevel
+                let weight: NSFont.Weight = heading.level <= 1 ? .semibold : .regular
+                let textColor: NSColor = heading.level <= 2 ? .labelColor : .secondaryLabelColor
+
+                let str = NSMutableAttributedString()
+                str.append(NSAttributedString(string: indent))
+                str.append(NSAttributedString(string: dot + " ", attributes: [
+                    .foregroundColor: color,
+                    .font: NSFont.systemFont(ofSize: fontSize * 0.7)
+                ]))
+                str.append(NSAttributedString(string: heading.text, attributes: [
+                    .foregroundColor: textColor,
+                    .font: NSFont.systemFont(ofSize: fontSize, weight: weight)
+                ]))
+                return str
+            }
+        }
+
         func numberOfRows(in tableView: NSTableView) -> Int { headings.count }
 
         func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
-            let heading = headings[row]
             let cellID = NSUserInterfaceItemIdentifier("TOCCell")
-            let cell: NSTableCellView
-            if let reused = tableView.makeView(withIdentifier: cellID, owner: nil) as? NSTableCellView {
-                cell = reused
-                // Update existing subviews
-                if let dot = cell.subviews.first(where: { $0.accessibilityIdentifier() == "dot" }) {
-                    let dotSize = [8.0, 7, 6, 5, 4, 4][min(heading.level - 1, 5)]
-                    dot.frame = NSRect(x: CGFloat((heading.level - 1) * 12) + 12, y: (24 - dotSize) / 2, width: dotSize, height: dotSize)
-                    dot.wantsLayer = true
-                    dot.layer?.backgroundColor = TOCSidebar.dotColors[min(heading.level - 1, 5)].cgColor
-                }
-                if let tf = cell.textField {
-                    tf.stringValue = heading.text
-                    tf.font = .systemFont(ofSize: (heading.level <= 2 ? 12 : 11) * zoomLevel, weight: heading.level <= 1 ? .semibold : .regular)
-                    tf.textColor = heading.level <= 2 ? .labelColor : .secondaryLabelColor
-                    tf.frame.origin.x = CGFloat((heading.level - 1) * 12) + 12 + [8.0, 7, 6, 5, 4, 4][min(heading.level - 1, 5)] + 6
-                }
+            let tf: NSTextField
+            if let reused = tableView.makeView(withIdentifier: cellID, owner: nil) as? NSTextField {
+                tf = reused
             } else {
-                cell = NSTableCellView()
-                cell.identifier = cellID
-
-                let dotSize = [8.0, 7, 6, 5, 4, 4][min(heading.level - 1, 5)]
-                let dot = NSView(frame: NSRect(x: CGFloat((heading.level - 1) * 12) + 12, y: (24 - dotSize) / 2, width: dotSize, height: dotSize))
-                dot.wantsLayer = true
-                dot.layer?.cornerRadius = dotSize / 2
-                dot.layer?.backgroundColor = TOCSidebar.dotColors[min(heading.level - 1, 5)].cgColor
-                dot.setAccessibilityIdentifier("dot")
-                cell.addSubview(dot)
-
-                let tf = NSTextField(labelWithString: heading.text)
-                tf.font = .systemFont(ofSize: (heading.level <= 2 ? 12 : 11) * zoomLevel, weight: heading.level <= 1 ? .semibold : .regular)
-                tf.textColor = heading.level <= 2 ? .labelColor : .secondaryLabelColor
+                tf = NSTextField(labelWithString: "")
+                tf.identifier = cellID
                 tf.lineBreakMode = .byTruncatingTail
-                tf.frame = NSRect(x: CGFloat((heading.level - 1) * 12) + 12 + dotSize + 6, y: 2, width: 1000, height: 20)
-                tf.autoresizingMask = [.width]
-                cell.textField = tf
-                cell.addSubview(tf)
+                tf.drawsBackground = false
+                tf.isBezeled = false
+                tf.isEditable = false
             }
-            return cell
+            if row < cachedStrings.count {
+                tf.attributedStringValue = cachedStrings[row]
+            }
+            return tf
         }
 
         @objc func tableClicked(_ sender: NSTableView) {
