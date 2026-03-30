@@ -1240,25 +1240,33 @@ struct TOCSidebar: NSViewRepresentable {
             self.onSelect = onSelect
         }
 
+        private static let dotSymbols = ["●", "●", "○", "○", "◦", "◦"]
+
         func rebuildCache() {
             cachedStrings = headings.map { heading in
-                let indent = String(repeating: "  ", count: heading.level - 1)
-                let dot = "●"
-                let color = TOCSidebar.dotColors[min(heading.level - 1, 5)]
+                let level = min(heading.level - 1, 5)
+                let indent = String(repeating: "    ", count: level)
+                let dot = Self.dotSymbols[level]
+                let color = TOCSidebar.dotColors[level]
                 let fontSize = (heading.level <= 2 ? 12.0 : 11.0) * zoomLevel
                 let weight: NSFont.Weight = heading.level <= 1 ? .semibold : .regular
                 let textColor: NSColor = heading.level <= 2 ? .labelColor : .secondaryLabelColor
+
+                let para = NSMutableParagraphStyle()
+                para.firstLineHeadIndent = CGFloat(level * 12) + 12
+                para.lineBreakMode = .byTruncatingTail
 
                 let str = NSMutableAttributedString()
                 str.append(NSAttributedString(string: indent))
                 str.append(NSAttributedString(string: dot + " ", attributes: [
                     .foregroundColor: color,
-                    .font: NSFont.systemFont(ofSize: fontSize * 0.7)
+                    .font: NSFont.systemFont(ofSize: fontSize * 0.8)
                 ]))
                 str.append(NSAttributedString(string: heading.text, attributes: [
                     .foregroundColor: textColor,
                     .font: NSFont.systemFont(ofSize: fontSize, weight: weight)
                 ]))
+                str.addAttribute(.paragraphStyle, value: para, range: NSRange(location: 0, length: str.length))
                 return str
             }
         }
