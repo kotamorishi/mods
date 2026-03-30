@@ -249,8 +249,32 @@ struct MarkdownRenderer {
         options: []
     )
 
+    /// Build sorted array of excluded range start positions for binary search.
+    private static func buildExcludedRanges(html: String, fullRange: NSRange) -> [NSRange] {
+        var ranges = codeBlockExcludeRegex.matches(in: html, range: fullRange).map { $0.range }
+        ranges.append(contentsOf: htmlTagExcludeRegex.matches(in: html, range: fullRange).map { $0.range })
+        ranges.sort { $0.location < $1.location }
+        return ranges
+    }
+
+    /// O(log n) check if a position falls inside any excluded range using binary search.
+    private static func isExcluded(location: Int, in ranges: [NSRange]) -> Bool {
+        var lo = 0, hi = ranges.count - 1
+        while lo <= hi {
+            let mid = (lo + hi) / 2
+            let r = ranges[mid]
+            if location < r.location {
+                hi = mid - 1
+            } else if location >= r.location + r.length {
+                lo = mid + 1
+            } else {
+                return true
+            }
+        }
+        return false
+    }
+
     private static func processEmoji(_ html: String) -> String {
-        // Fast pre-check: skip emoji map loading if no :shortcode: pattern exists
         let range = NSRange(html.startIndex..., in: html)
         guard emojiQuickCheck.firstMatch(in: html, range: range) != nil else { return html }
         let map = emojiMap
@@ -258,10 +282,7 @@ struct MarkdownRenderer {
 
         let nsHtml = html as NSString
         let fullRange = NSRange(location: 0, length: nsHtml.length)
-
-        let codeRanges = codeBlockExcludeRegex.matches(in: html, range: fullRange).map { $0.range }
-        let tagRanges = htmlTagExcludeRegex.matches(in: html, range: fullRange).map { $0.range }
-        let excludedRanges = codeRanges + tagRanges
+        let excluded = buildExcludedRanges(html: html, fullRange: fullRange)
 
         let matches = emojiRegex.matches(in: html, range: fullRange)
         guard !matches.isEmpty else { return html }
@@ -271,12 +292,9 @@ struct MarkdownRenderer {
         var cursor = html.startIndex
 
         for match in matches {
-            let matchRange = match.range
-            let isExcluded = excludedRanges.contains { NSIntersectionRange($0, matchRange).length > 0 }
-            if isExcluded { continue }
-
+            if isExcluded(location: match.range.location, in: excluded) { continue }
             let name = nsHtml.substring(with: match.range(at: 1))
-            guard let emoji = map[name], let swiftRange = Range(matchRange, in: html) else { continue }
+            guard let emoji = map[name], let swiftRange = Range(match.range, in: html) else { continue }
             result.append(contentsOf: html[cursor..<swiftRange.lowerBound])
             result.append(emoji)
             cursor = swiftRange.upperBound
@@ -293,12 +311,8 @@ struct MarkdownRenderer {
 
         let nsHtml = html as NSString
         let fullRange = NSRange(location: 0, length: nsHtml.length)
+        let excluded = buildExcludedRanges(html: html, fullRange: fullRange)
 
-        let codeRanges = codeBlockExcludeRegex.matches(in: html, range: fullRange).map { $0.range }
-        let tagRanges = htmlTagExcludeRegex.matches(in: html, range: fullRange).map { $0.range }
-        let excludedRanges = codeRanges + tagRanges
-
-        // Build a single regex matching any keyword (case-insensitive)
         let escapedKeywords = keywords.map { NSRegularExpression.escapedPattern(for: $0) }
         let pattern = "(" + escapedKeywords.joined(separator: "|") + ")"
         guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else { return html }
@@ -311,13 +325,10 @@ struct MarkdownRenderer {
         var cursor = html.startIndex
 
         for match in matches {
-            let matchRange = match.range
-            let isExcluded = excludedRanges.contains { NSIntersectionRange($0, matchRange).length > 0 }
-            if isExcluded { continue }
-
-            guard let swiftRange = Range(matchRange, in: html) else { continue }
+            if isExcluded(location: match.range.location, in: excluded) { continue }
+            guard let swiftRange = Range(match.range, in: html) else { continue }
             result.append(contentsOf: html[cursor..<swiftRange.lowerBound])
-            let matched = nsHtml.substring(with: matchRange)
+            let matched = nsHtml.substring(with: match.range)
             result.append("<span class=\"__mods-keyword-hl\">\(matched)</span>")
             cursor = swiftRange.upperBound
         }
