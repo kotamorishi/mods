@@ -1063,7 +1063,7 @@ struct TOCSidebar: View {
             .padding(.bottom, 4)
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 1) {
+                LazyVStack(alignment: .leading, spacing: 1) {
                     ForEach(Array(headings.enumerated()), id: \.offset) { _, heading in
                         Button {
                             onSelect(heading.id)
