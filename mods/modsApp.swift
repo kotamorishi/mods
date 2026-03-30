@@ -493,7 +493,7 @@ struct FileView: View {
     private var contentArea: some View {
         HStack(spacing: 0) {
             if showTOC && !headings.isEmpty {
-                TOCSidebar(headings: currentPageHeadings, zoomLevel: zoomLevel, width: tocWidth) { heading in
+                TOCSidebar(headings: headings, zoomLevel: zoomLevel, width: tocWidth) { heading in
                     navigateToHeading(heading)
                 }
                 .frame(width: max(120, min(500, tocWidth)))
@@ -1219,13 +1219,11 @@ struct TOCSidebar: NSViewRepresentable {
     func updateNSView(_ nsView: NSView, context: Context) {
         let coord = context.coordinator
         coord.onSelect = onSelect
-        let needsReload = coord.headings.count != headings.count || coord.zoomLevel != zoomLevel
-        coord.headings = headings
-        coord.zoomLevel = zoomLevel
-        if needsReload {
+        if coord.headings.count != headings.count || coord.zoomLevel != zoomLevel {
+            coord.headings = headings
+            coord.zoomLevel = zoomLevel
             coord.tableView?.reloadData()
         }
-        nsView.setFrameSize(NSSize(width: max(120, min(500, width)), height: nsView.frame.height))
     }
 
     class TOCCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource {
