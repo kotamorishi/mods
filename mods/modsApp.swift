@@ -435,6 +435,11 @@ struct FileView: View {
             }
     }
 
+    private var currentPageHeadings: [(level: Int, text: String, id: String)] {
+        guard !pages.isEmpty, currentPage < pages.count else { return headings }
+        return Self.parseHeadings(pages[currentPage])
+    }
+
     private var wordCount: Int {
         markdown.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
     }
@@ -488,7 +493,7 @@ struct FileView: View {
     private var contentArea: some View {
         HStack(spacing: 0) {
             if showTOC && !headings.isEmpty {
-                TOCSidebar(headings: headings, zoomLevel: zoomLevel, width: tocWidth) { heading in
+                TOCSidebar(headings: currentPageHeadings, zoomLevel: zoomLevel, width: tocWidth) { heading in
                     navigateToHeading(heading)
                 }
                 .frame(width: max(120, min(500, tocWidth)))
