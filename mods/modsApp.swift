@@ -118,7 +118,7 @@ struct modsApp: App {
                     clearHighlightsAction?()
                 }
                 .keyboardShortcut("f", modifiers: [.command, .shift])
-                Button("Table of Contents") {
+                Button("Toggle Sidebar") {
                     tocAction?()
                 }
                 .keyboardShortcut("t", modifiers: [.command, .shift])
@@ -405,12 +405,17 @@ struct FileView: View {
     @State private var printTrigger: Int = 0
     @State private var exportPDFTrigger: Int = 0
     @State private var tocScrollTarget: String = ""
-    @AppStorage("showTOC") private var showTOC: Bool = false
+    @AppStorage("showSidebar") private var showSidebar: Bool = false
+    @AppStorage("showFiles") private var showFiles: Bool = true
+    @AppStorage("showTOC") private var showTOC: Bool = true
     @AppStorage("tocWidth") private var tocWidth: Double = 220
+    @AppStorage("filesHeight") private var filesHeight: Double = 0
     @State private var headings: [(level: Int, text: String, id: String)] = []
     @State private var pages: [String] = []
     @State private var currentPage: Int = 0
     @State private var currentPageHTML: String = ""
+    @State private var siblingFiles: [URL] = []
+    @State private var scrollToTopTrigger: Int = 0
 
     private static func parseHeadings(_ markdown: String) -> [(level: Int, text: String, id: String)] {
         var counts: [String: Int] = [:]
@@ -449,6 +454,17 @@ struct FileView: View {
             .onOpenURL(perform: handleOpenURL)
             .onDisappear { fileWatcher?.stop() }
             .onAppear { loadURL(initialURL) }
+            .onDrop(of: [.fileURL], isTargeted: nil) { providers in
+                guard let provider = providers.first else { return false }
+                _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                    if let url, URLValidator.isSafe(url) {
+                        DispatchQueue.main.async {
+                            self.openWindow(value: url)
+                        }
+                    }
+                }
+                return true
+            }
     }
 
     private var mainContent: some View {
@@ -457,7 +473,7 @@ struct FileView: View {
             .focusedSceneValue(\.findAction, performFind)
             .focusedSceneValue(\.printAction, performPrint)
             .focusedSceneValue(\.exportPDFAction, performExportPDF)
-            .focusedSceneValue(\.tocAction, toggleTOC)
+            .focusedSceneValue(\.tocAction, toggleSidebar)
             .focusedSceneValue(\.clearHighlightsAction, clearHighlights)
             .focusedSceneValue(\.zoomInAction, performZoomIn)
             .focusedSceneValue(\.zoomOutAction, performZoomOut)
@@ -490,11 +506,62 @@ struct FileView: View {
         }
     }
 
+    /// Row height (22) + intercell spacing (1) per file row, plus folder path line (~18) + padding.
+    private static let fileRowHeight: CGFloat = 23
+    private static let filesHeaderExtra: CGFloat = 22
+    private static let maxVisibleFiles: Int = 7
+
+    private var filesContentHeight: CGFloat {
+        let rowsHeight = CGFloat(siblingFiles.count) * Self.fileRowHeight + Self.filesHeaderExtra
+        let maxHeight = CGFloat(Self.maxVisibleFiles) * Self.fileRowHeight + Self.filesHeaderExtra
+        return min(rowsHeight, maxHeight)
+    }
+
+    private var effectiveFilesHeight: CGFloat {
+        if filesHeight > 0 {
+            // User-set height, but still clamp to content height when fewer files
+            let maxHeight = CGFloat(Self.maxVisibleFiles) * Self.fileRowHeight + Self.filesHeaderExtra
+            return min(filesHeight, maxHeight)
+        }
+        return filesContentHeight
+    }
+
     private var contentArea: some View {
         HStack(spacing: 0) {
-            if showTOC && !headings.isEmpty {
-                TOCSidebar(headings: headings, zoomLevel: zoomLevel, width: tocWidth) { heading in
-                    navigateToHeading(heading)
+            if showSidebar && (!siblingFiles.isEmpty || !headings.isEmpty) {
+                VStack(spacing: 0) {
+                    if !siblingFiles.isEmpty {
+                        SidebarSectionHeader(title: "FILES", isExpanded: $showFiles)
+                        if showFiles {
+                            VStack(spacing: 0) {
+                                if let fileURL {
+                                    Text(fileURL.deletingLastPathComponent().path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(.tertiary)
+                                        .lineLimit(1)
+                                        .truncationMode(.head)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .padding(.horizontal, 12)
+                                        .padding(.bottom, 4)
+                                }
+                                FilesSidebar(files: siblingFiles, currentFile: fileURL) { url in
+                                    openSiblingFile(url)
+                                }
+                            }
+                            .frame(height: effectiveFilesHeight)
+                            VerticalResizeHandle(height: $filesHeight, minHeight: Self.fileRowHeight + Self.filesHeaderExtra, maxHeight: CGFloat(Self.maxVisibleFiles) * Self.fileRowHeight + Self.filesHeaderExtra)
+                        }
+                        Divider()
+                    }
+                    if !headings.isEmpty {
+                        SidebarSectionHeader(title: "OUTLINE", isExpanded: $showTOC)
+                        if showTOC {
+                            TOCSidebar(headings: headings, zoomLevel: zoomLevel, width: tocWidth) { heading in
+                                navigateToHeading(heading)
+                            }
+                        }
+                    }
+                    Spacer(minLength: 0)
                 }
                 .frame(width: max(120, min(500, tocWidth)))
                 ResizableHandle(width: $tocWidth)
@@ -586,7 +653,7 @@ struct FileView: View {
     }
 
     private var markdownWebView: some View {
-        MarkdownWebView(markdown: currentPageHTML.isEmpty ? markdown : currentPageHTML, zoomLevel: zoomLevel, search: search, activeSearchTerms: $activeSearchTerms, searchStack: $searchStack, printTrigger: printTrigger, exportPDFTrigger: exportPDFTrigger, tocScrollTarget: tocScrollTarget)
+        MarkdownWebView(markdown: currentPageHTML.isEmpty ? markdown : currentPageHTML, zoomLevel: $zoomLevel, search: search, activeSearchTerms: $activeSearchTerms, searchStack: $searchStack, printTrigger: printTrigger, exportPDFTrigger: exportPDFTrigger, tocScrollTarget: tocScrollTarget, scrollToTopTrigger: scrollToTopTrigger)
     }
 
     private var filteredSuggestions: [String] {
@@ -600,8 +667,8 @@ struct FileView: View {
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         ToolbarItem(placement: .navigation) {
-            Button { showTOC.toggle() } label: { Image(systemName: "list.bullet") }
-                .help("Toggle Outline")
+            Button { toggleSidebar() } label: { Image(systemName: "sidebar.left") }
+                .help("Toggle Sidebar")
         }
     }
 
@@ -615,7 +682,7 @@ struct FileView: View {
     private func performFind() { isSearching.toggle() }
     private func performPrint() { printTrigger += 1 }
     private func performExportPDF() { exportPDFTrigger += 1 }
-    private func toggleTOC() { showTOC.toggle() }
+    private func toggleSidebar() { showSidebar.toggle() }
     private func clearHighlights() { search.clearTrigger += 1 }
     private func performZoomIn() { zoomLevel = min(5.0, zoomLevel + 0.1) }
     private func performZoomOut() { zoomLevel = max(0.25, zoomLevel - 0.1) }
@@ -667,9 +734,23 @@ struct FileView: View {
         }
     }
 
+    private func openSiblingFile(_ url: URL) {
+        guard url != fileURL else { return }
+        // Check if the file is already open in another window/tab and activate it
+        for window in NSApplication.shared.windows where window.title == url.lastPathComponent {
+            window.makeKeyAndOrderFront(nil)
+            return
+        }
+        openWindow(value: url)
+    }
+
     private static let maxFileSize: UInt64 = 10 * 1024 * 1024
 
     private func loadURL(_ url: URL) {
+        // Scroll to top when switching to a different file
+        if fileURL != nil && fileURL != url {
+            scrollToTopTrigger += 1
+        }
         self.fileURL = url
         NSDocumentController.shared.noteNewRecentDocumentURL(url)
         _ = url.startAccessingSecurityScopedResource()
@@ -686,6 +767,7 @@ struct FileView: View {
         self.markdown = HTMLBuilder.readFileWithFallback(url: url)
         self.headings = Self.parseHeadings(markdown)
         paginateMarkdown()
+        updateSiblingFiles()
         startWatching(url)
     }
 
@@ -770,6 +852,20 @@ struct FileView: View {
         }
         // Fallback
         tocScrollTarget = headingID
+    }
+
+    private static let markdownExtensions: Set<String> = ["md", "markdown", "mdown", "mkd"]
+
+    private func updateSiblingFiles() {
+        guard let fileURL else { siblingFiles = []; return }
+        let dir = fileURL.deletingLastPathComponent()
+        guard let contents = try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) else {
+            siblingFiles = []
+            return
+        }
+        siblingFiles = contents
+            .filter { Self.markdownExtensions.contains($0.pathExtension.lowercased()) }
+            .sorted { $0.lastPathComponent.localizedCaseInsensitiveCompare($1.lastPathComponent) == .orderedAscending }
     }
 
     private func startWatching(_ url: URL) {
@@ -1137,10 +1233,165 @@ struct ResizableHandle: View {
     }
 }
 
+/// Vertical resize handle between FILES and OUTLINE sections.
+struct VerticalResizeHandle: View {
+    @Binding var height: Double
+    let minHeight: CGFloat
+    let maxHeight: CGFloat
+    @GestureState private var dragStartHeight: Double?
+
+    var body: some View {
+        Rectangle()
+            .fill(Color.primary.opacity(0.001))
+            .frame(height: 6)
+            .cursor(.resizeUpDown)
+            .gesture(
+                DragGesture(minimumDistance: 1)
+                    .updating($dragStartHeight) { _, state, _ in
+                        if state == nil { state = height }
+                    }
+                    .onChanged { value in
+                        let start = dragStartHeight ?? height
+                        height = max(Double(minHeight), min(Double(maxHeight), start + value.translation.height))
+                    }
+            )
+            .overlay(Divider())
+    }
+}
+
 extension View {
     func cursor(_ cursor: NSCursor) -> some View {
         onHover { inside in
             if inside { cursor.push() } else { NSCursor.pop() }
+        }
+    }
+}
+
+/// Collapsible section header for sidebar panels (FILES, OUTLINE).
+struct SidebarSectionHeader: View {
+    let title: String
+    @Binding var isExpanded: Bool
+
+    var body: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.15)) { isExpanded.toggle() }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.tertiary)
+                    .frame(width: 10)
+                Text(title)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// Sidebar panel listing sibling markdown files in the same directory.
+struct FilesSidebar: NSViewRepresentable {
+    let files: [URL]
+    let currentFile: URL?
+    let onSelect: (URL) -> Void
+
+    func makeCoordinator() -> FilesCoordinator {
+        FilesCoordinator(onSelect: onSelect)
+    }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSScrollView()
+        scrollView.hasVerticalScroller = true
+        scrollView.autohidesScrollers = true
+        scrollView.drawsBackground = false
+
+        let tableView = NSTableView()
+        tableView.headerView = nil
+        tableView.rowHeight = 22
+        tableView.intercellSpacing = NSSize(width: 0, height: 1)
+        tableView.backgroundColor = .clear
+        tableView.style = .plain
+        tableView.selectionHighlightStyle = .none
+        let col = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("file"))
+        col.resizingMask = .autoresizingMask
+        tableView.addTableColumn(col)
+        tableView.delegate = context.coordinator
+        tableView.dataSource = context.coordinator
+        tableView.target = context.coordinator
+        tableView.action = #selector(FilesCoordinator.tableClicked(_:))
+
+        scrollView.documentView = tableView
+        context.coordinator.tableView = tableView
+        context.coordinator.files = files
+        context.coordinator.currentFile = currentFile
+        tableView.reloadData()
+        return scrollView
+    }
+
+    func updateNSView(_ nsView: NSScrollView, context: Context) {
+        let coord = context.coordinator
+        coord.onSelect = onSelect
+        let changed = coord.files.count != files.count || coord.currentFile != currentFile
+            || zip(coord.files, files).contains(where: { $0 != $1 })
+        if changed {
+            coord.files = files
+            coord.currentFile = currentFile
+            coord.tableView?.reloadData()
+        }
+    }
+
+    class FilesCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource {
+        var files: [URL] = []
+        var currentFile: URL?
+        var onSelect: (URL) -> Void
+        weak var tableView: NSTableView?
+
+        init(onSelect: @escaping (URL) -> Void) {
+            self.onSelect = onSelect
+        }
+
+        func numberOfRows(in tableView: NSTableView) -> Int { files.count }
+
+        func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+            let cellID = NSUserInterfaceItemIdentifier("FileCell")
+            let tf: NSTextField
+            if let reused = tableView.makeView(withIdentifier: cellID, owner: nil) as? NSTextField {
+                tf = reused
+            } else {
+                tf = NSTextField(labelWithString: "")
+                tf.identifier = cellID
+                tf.lineBreakMode = .byTruncatingTail
+                tf.drawsBackground = false
+                tf.isBezeled = false
+                tf.isEditable = false
+            }
+            guard row < files.count else { return tf }
+            let file = files[row]
+            let isCurrent = file == currentFile
+            let name = file.deletingPathExtension().lastPathComponent
+
+            let para = NSMutableParagraphStyle()
+            para.firstLineHeadIndent = 12
+            para.lineBreakMode = .byTruncatingTail
+
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: NSFont.systemFont(ofSize: 12, weight: isCurrent ? .semibold : .regular),
+                .foregroundColor: isCurrent ? NSColor.controlAccentColor : NSColor.labelColor,
+                .paragraphStyle: para
+            ]
+            tf.attributedStringValue = NSAttributedString(string: name, attributes: attrs)
+            return tf
+        }
+
+        @objc func tableClicked(_ sender: NSTableView) {
+            let row = sender.clickedRow
+            guard row >= 0, row < files.count else { return }
+            onSelect(files[row])
         }
     }
 }
@@ -1167,12 +1418,6 @@ struct TOCSidebar: NSViewRepresentable {
     func makeNSView(context: Context) -> NSView {
         let container = NSView()
 
-        let label = NSTextField(labelWithString: "OUTLINE")
-        label.font = .systemFont(ofSize: 11, weight: .semibold)
-        label.textColor = .tertiaryLabelColor
-        label.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(label)
-
         let scrollView = NSScrollView()
         scrollView.hasVerticalScroller = true
         scrollView.autohidesScrollers = true
@@ -1198,10 +1443,7 @@ struct TOCSidebar: NSViewRepresentable {
         container.addSubview(scrollView)
 
         NSLayoutConstraint.activate([
-            label.topAnchor.constraint(equalTo: container.topAnchor, constant: 8),
-            label.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 12),
-            label.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -12),
-            scrollView.topAnchor.constraint(equalTo: label.bottomAnchor, constant: 4),
+            scrollView.topAnchor.constraint(equalTo: container.topAnchor),
             scrollView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
             scrollView.bottomAnchor.constraint(equalTo: container.bottomAnchor),

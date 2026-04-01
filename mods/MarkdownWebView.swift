@@ -23,16 +23,33 @@ struct SearchState {
 
 struct MarkdownWebView: NSViewRepresentable {
     let markdown: String
-    let zoomLevel: Double
+    @Binding var zoomLevel: Double
     let search: SearchState
     @Binding var activeSearchTerms: [(term: String, slot: Int, count: Int, current: Int)]
     @Binding var searchStack: [[String]]
     let printTrigger: Int
     let exportPDFTrigger: Int
     let tocScrollTarget: String
+    let scrollToTopTrigger: Int
 
-    /// WKWebView subclass that intercepts drag registration and handles file drops.
+    /// WKWebView subclass that intercepts drag registration and handles file drops and magnification.
     class ModsWebView: WKWebView {
+        var onMagnify: ((Double) -> Void)?
+        var scrollToTopOnNextUpdate: Bool = false
+        private var magnifyScale: Double = 1.0
+
+        override func magnify(with event: NSEvent) {
+            switch event.phase {
+            case .began:
+                magnifyScale = 1.0
+            case .changed:
+                magnifyScale += event.magnification * 0.1
+                onMagnify?(magnifyScale)
+            default:
+                break
+            }
+        }
+
         // Override registerForDraggedTypes to ensure file URL drops always work.
         // WKWebView's internal subviews call this to register their own types;
         // by overriding, we control what actually gets registered.
@@ -97,6 +114,8 @@ struct MarkdownWebView: NSViewRepresentable {
         var pendingKeywords: [String] = []
         var termsUpdateHandler: ((String) -> Void)?
         var renderTask: Task<Void, Never>?
+        var magnifyBaseZoom: Double = 1.0
+        var lastScrollToTopTrigger: Int = 0
 
         @MainActor
         func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction) async -> WKNavigationActionPolicy {
@@ -170,6 +189,11 @@ struct MarkdownWebView: NSViewRepresentable {
             self.updateActiveTerms(from: json)
         }
 
+        (webView as? ModsWebView)?.onMagnify = { [self] scale in
+            let baseZoom = context.coordinator.magnifyBaseZoom
+            self.zoomLevel = max(0.25, min(5.0, baseZoom * scale))
+        }
+
         if !markdown.isEmpty {
             let bodyHTML = MarkdownRenderer.renderToHTML(markdown)
             let html = HTMLBuilder.buildHTML(bodyHTML: bodyHTML)
@@ -185,8 +209,14 @@ struct MarkdownWebView: NSViewRepresentable {
     func updateNSView(_ webView: WKWebView, context: Context) {
         if context.coordinator.lastZoomLevel != zoomLevel {
             context.coordinator.lastZoomLevel = zoomLevel
+            context.coordinator.magnifyBaseZoom = zoomLevel
             let fontPx = 16.0 * zoomLevel
             webView.evaluateJavaScript("document.body.style.fontSize='\(fontPx)px'")
+        }
+
+        if context.coordinator.lastScrollToTopTrigger != scrollToTopTrigger {
+            context.coordinator.lastScrollToTopTrigger = scrollToTopTrigger
+            (webView as? ModsWebView)?.scrollToTopOnNextUpdate = true
         }
 
         if context.coordinator.currentMarkdown != markdown {
@@ -378,49 +408,58 @@ struct MarkdownWebView: NSViewRepresentable {
         let bodyHTML = bodyHTML ?? MarkdownRenderer.renderToHTML(markdown)
         let postLoadJS = postLoadJS ?? HTMLBuilder.conditionalJS(for: bodyHTML)
 
-        // Save the nearest visible heading before updating content,
-        // then restore scroll position to that heading after update.
-        let js = """
-        (function() {
-            // Find the heading closest to the current viewport top
-            var marker = null;
-            var headings = document.querySelectorAll('h1,h2,h3,h4,h5,h6');
-            for (var i = headings.length - 1; i >= 0; i--) {
-                if (headings[i].getBoundingClientRect().top <= 10) {
-                    marker = headings[i].id || headings[i].textContent.trim();
-                    break;
-                }
-            }
-            // If no heading is above viewport, remember scroll ratio as fallback
-            var scrollRatio = document.documentElement.scrollHeight > window.innerHeight
-                ? window.scrollY / (document.documentElement.scrollHeight - window.innerHeight)
-                : 0;
+        let scrollToTop = (webView as? ModsWebView)?.scrollToTopOnNextUpdate ?? false
+        (webView as? ModsWebView)?.scrollToTopOnNextUpdate = false
 
-            // Update content
-            document.getElementById('content').innerHTML = \(HTMLBuilder.jsonEncode(bodyHTML));
-            \(postLoadJS)
-
-            // Restore position
-            if (marker) {
-                var found = marker ? document.getElementById(marker) : null;
-                if (!found) {
-                    var newHeadings = document.querySelectorAll('h1,h2,h3,h4,h5,h6');
-                    for (var h of newHeadings) {
-                        if (h.textContent.trim() === marker) { found = h; break; }
+        let js: String
+        if scrollToTop {
+            // New file: update content and scroll to top
+            js = """
+            (function() {
+                document.getElementById('content').innerHTML = \(HTMLBuilder.jsonEncode(bodyHTML));
+                \(postLoadJS)
+                window.scrollTo(0, 0);
+            })();
+            """
+        } else {
+            // Same file reloaded: save and restore scroll position
+            js = """
+            (function() {
+                var marker = null;
+                var headings = document.querySelectorAll('h1,h2,h3,h4,h5,h6');
+                for (var i = headings.length - 1; i >= 0; i--) {
+                    if (headings[i].getBoundingClientRect().top <= 10) {
+                        marker = headings[i].id || headings[i].textContent.trim();
+                        break;
                     }
                 }
-                if (found) {
-                    found.scrollIntoView({ block: 'start' });
-                    return;
+                var scrollRatio = document.documentElement.scrollHeight > window.innerHeight
+                    ? window.scrollY / (document.documentElement.scrollHeight - window.innerHeight)
+                    : 0;
+
+                document.getElementById('content').innerHTML = \(HTMLBuilder.jsonEncode(bodyHTML));
+                \(postLoadJS)
+
+                if (marker) {
+                    var found = marker ? document.getElementById(marker) : null;
+                    if (!found) {
+                        var newHeadings = document.querySelectorAll('h1,h2,h3,h4,h5,h6');
+                        for (var h of newHeadings) {
+                            if (h.textContent.trim() === marker) { found = h; break; }
+                        }
+                    }
+                    if (found) {
+                        found.scrollIntoView({ block: 'start' });
+                        return;
+                    }
                 }
-            }
-            // Fallback: restore by scroll ratio
-            if (scrollRatio > 0) {
-                var newMax = document.documentElement.scrollHeight - window.innerHeight;
-                window.scrollTo(0, scrollRatio * newMax);
-            }
-        })();
-        """
+                if (scrollRatio > 0) {
+                    var newMax = document.documentElement.scrollHeight - window.innerHeight;
+                    window.scrollTo(0, scrollRatio * newMax);
+                }
+            })();
+            """
+        }
 
         webView.evaluateJavaScript(js) { _, _ in
             let addKeywords = {
