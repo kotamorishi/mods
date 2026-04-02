@@ -2,7 +2,7 @@
   "private": true,
   "description": "Version tracking only — not used for builds. Dependabot monitors these for updates.",
   "dependencies": {
-    "mermaid": "11.13.0",
+    "mermaid": "11.14.0",
     "katex": "0.16.44",
     "highlight.js": "11.11.1"
   }
