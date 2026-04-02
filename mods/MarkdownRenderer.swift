@@ -10,9 +10,99 @@ struct MarkdownRenderer {
         return true
     }()
 
+    // MARK: - Frontmatter
+
+    /// Extract YAML frontmatter from the start of a markdown string.
+    static func extractFrontmatter(_ markdown: String) -> (frontmatter: String?, body: String) {
+        guard markdown.hasPrefix("---") else { return (nil, markdown) }
+        let lines = markdown.components(separatedBy: "\n")
+        guard lines.count >= 3 else { return (nil, markdown) }
+        // Find closing ---
+        for i in 1..<lines.count {
+            if lines[i].trimmingCharacters(in: .whitespaces) == "---" {
+                let fmLines = lines[1..<i]
+                let fm = fmLines.joined(separator: "\n")
+                let body = lines[(i+1)...].joined(separator: "\n")
+                return (fm.isEmpty ? nil : fm, body)
+            }
+        }
+        return (nil, markdown)
+    }
+
+    /// Parse simple YAML key-value pairs into an ordered list.
+    static func parseFrontmatter(_ yaml: String) -> [(key: String, value: String)] {
+        var result: [(key: String, value: String)] = []
+        let lines = yaml.components(separatedBy: "\n")
+        var i = 0
+        while i < lines.count {
+            let line = lines[i]
+            // Skip blank lines and comments
+            if line.trimmingCharacters(in: .whitespaces).isEmpty || line.trimmingCharacters(in: .whitespaces).hasPrefix("#") {
+                i += 1
+                continue
+            }
+            guard let colonRange = line.range(of: ":") else { i += 1; continue }
+            let key = String(line[line.startIndex..<colonRange.lowerBound]).trimmingCharacters(in: .whitespaces)
+            let valueAfterColon = String(line[colonRange.upperBound...]).trimmingCharacters(in: .whitespaces)
+
+            if !valueAfterColon.isEmpty {
+                // Inline value: "key: value" or "key: [a, b, c]"
+                var val = valueAfterColon
+                // Clean inline arrays: [a, b, c] → a, b, c
+                if val.hasPrefix("[") && val.hasSuffix("]") {
+                    val = String(val.dropFirst().dropLast()).trimmingCharacters(in: .whitespaces)
+                }
+                result.append((key: key, value: val))
+            } else {
+                // Multi-line list: collect "- item" lines
+                var items: [String] = []
+                var j = i + 1
+                while j < lines.count {
+                    let next = lines[j]
+                    let trimmed = next.trimmingCharacters(in: .whitespaces)
+                    if trimmed.hasPrefix("- ") {
+                        items.append(String(trimmed.dropFirst(2)))
+                        j += 1
+                    } else if trimmed.isEmpty {
+                        j += 1
+                    } else {
+                        break
+                    }
+                }
+                if !items.isEmpty {
+                    result.append((key: key, value: items.joined(separator: ", ")))
+                    i = j
+                    continue
+                } else {
+                    result.append((key: key, value: ""))
+                }
+            }
+            i += 1
+        }
+        return result
+    }
+
+    /// Render frontmatter as a styled HTML block.
+    static func renderFrontmatterHTML(_ yaml: String) -> String {
+        let pairs = parseFrontmatter(yaml)
+        guard !pairs.isEmpty else { return "" }
+        var rows = ""
+        for pair in pairs {
+            rows += "<tr><td class=\"mods-fm-key\">\(escapeHTML(pair.key))</td><td>\(escapeHTML(pair.value))</td></tr>"
+        }
+        return """
+        <div class="mods-frontmatter">
+        <div class="mods-frontmatter-header"><span class="mods-badge">mods</span> FRONTMATTER</div>
+        <table class="mods-frontmatter-table">\(rows)</table>
+        </div>
+        """
+    }
+
     /// Convert a Markdown string to HTML using cmark-gfm with all GFM extensions.
     static func renderToHTML(_ markdown: String) -> String {
         _ = extensionsRegistered
+
+        let (frontmatter, body) = extractFrontmatter(markdown)
 
         // Security: CMARK_OPT_DEFAULT escapes all raw HTML in markdown.
         // Do NOT use CMARK_OPT_UNSAFE — it passes raw HTML through,
@@ -33,17 +123,17 @@ struct MarkdownRenderer {
             }
         }
 
-        let bytes = markdown.utf8
-        cmark_parser_feed(parser, markdown, bytes.count)
+        let bytes = body.utf8
+        cmark_parser_feed(parser, body, bytes.count)
         guard let doc = cmark_parser_finish(parser) else {
             cmark_llist_free(cmark_get_default_mem_allocator(), extensions)
-            return "<pre>\(escapeHTML(markdown))</pre>"
+            return "<pre>\(escapeHTML(body))</pre>"
         }
         defer { cmark_node_free(doc) }
 
         guard let htmlCStr = cmark_render_html(doc, Int32(options), extensions) else {
             cmark_llist_free(cmark_get_default_mem_allocator(), extensions)
-            return "<pre>\(escapeHTML(markdown))</pre>"
+            return "<pre>\(escapeHTML(body))</pre>"
         }
         defer { free(htmlCStr) }
         cmark_llist_free(cmark_get_default_mem_allocator(), extensions)
@@ -57,6 +147,10 @@ struct MarkdownRenderer {
         html = processEmoji(html)
         html = processColorChips(html)
         html = highlightKeywords(html)
+
+        if let fm = frontmatter {
+            html = renderFrontmatterHTML(fm) + html
+        }
 
         return html
     }
