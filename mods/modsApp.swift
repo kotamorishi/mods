@@ -543,6 +543,10 @@ struct FileView: View {
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                         .padding(.horizontal, 12)
                                         .padding(.bottom, 4)
+                                        .onTapGesture {
+                                            NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: fileURL.deletingLastPathComponent().path)
+                                        }
+                                        .cursor(.pointingHand)
                                 }
                                 FilesSidebar(files: siblingFiles, currentFile: fileURL) { url in
                                     openSiblingFile(url)
