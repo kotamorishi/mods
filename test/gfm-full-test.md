@@ -1,3 +1,10 @@
+---
+title: GFM Full Compliance Test
+author: mods test suite
+version: 1.0
+tags: [gfm, test, markdown]
+---
+
 # GFM Full Compliance Test
 
 ## 1. Headings
@@ -21,9 +28,9 @@
 
 This is <sub>subscript</sub> and <sup>superscript</sup>
 
-This is <ins>underlined</ins> text
+This is <ins>underlined</ins> textss
 
-## 3. Blockquotes
+## 3. Block-quotes
 
 > Single blockquote
 
@@ -32,7 +39,7 @@ This is <ins>underlined</ins> text
 
 > Nested blockquote
 > > Inner quote
-> > > Deeper quote
+> > > Deeper quotes
 
 ## 4. Code
 
@@ -40,6 +47,7 @@ Inline `code` here.
 
 ```swift
 func greet(name: String) -> String {
+    // comment. S
     return "Hello, \(name)!"
 }
 ```
@@ -225,10 +233,10 @@ Nested:
 | Left | Center | Right |
 |:-----|:------:|------:|
 | L1   |   C1   |    R1 |
-| L2   |   C2   |    R2 |
+| L2   |   C2   |    Rvs2 |
 | L3   |   C3   |    R3 |
 
-## 11. Horizontal Rules
+## 11. Horizontal Rulessss
 
 ---
 
