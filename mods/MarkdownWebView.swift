@@ -38,6 +38,24 @@ struct MarkdownWebView: NSViewRepresentable {
         var scrollToTopOnNextUpdate: Bool = false
         private var magnifyScale: Double = 1.0
 
+        func printContent() {
+            guard let window = self.window else { return }
+            let printInfo = NSPrintInfo()
+            printInfo.horizontalPagination = .fit
+            printInfo.verticalPagination = .automatic
+            printInfo.isVerticallyCentered = false
+            printInfo.isHorizontallyCentered = false
+            printInfo.topMargin = 36
+            printInfo.bottomMargin = 36
+            printInfo.leftMargin = 36
+            printInfo.rightMargin = 36
+            let op = self.printOperation(with: printInfo)
+            op.showsPrintPanel = true
+            op.showsProgressPanel = true
+            op.view?.frame = self.bounds
+            op.runModal(for: window, delegate: nil, didRun: nil, contextInfo: nil)
+        }
+
         override func magnify(with event: NSEvent) {
             switch event.phase {
             case .began:
@@ -302,9 +320,7 @@ struct MarkdownWebView: NSViewRepresentable {
         // Print
         if context.coordinator.lastPrintTrigger != printTrigger {
             context.coordinator.lastPrintTrigger = printTrigger
-            if let window = webView.window {
-                webView.printOperation(with: .shared).runModal(for: window, delegate: nil, didRun: nil, contextInfo: nil)
-            }
+            (webView as? ModsWebView)?.printContent()
         }
 
         // Export PDF
