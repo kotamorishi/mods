@@ -486,6 +486,8 @@ struct FileView: View {
     @State private var markdown: String = ""
     @AppStorage("zoomLevel") private var zoomLevel: Double = 1.0
     @State private var fileWatcher: FileWatcher?
+    @State private var securityScopedDir: URL?  // keeps directory access alive for file watcher
+    @State private var hasDirectoryAccess: Bool = false
     @State private var searchText: String = ""
     @State private var isSearching: Bool = false
     @State private var search = SearchState()
@@ -513,6 +515,7 @@ struct FileView: View {
     @State private var diffHunks: [MarkdownRenderer.DiffHunk] = []
     @State private var applyDiffTrigger: Int = 0
     @State private var clearDiffTrigger: Int = 0
+    @State private var scrollToDiffTrigger: Int = 0
 
     private static func parseHeadings(_ markdown: String) -> [(level: Int, text: String, id: String)] {
         var counts: [String: Int] = [:]
@@ -549,7 +552,10 @@ struct FileView: View {
     var body: some View {
         mainContent
             .onOpenURL(perform: handleOpenURL)
-            .onDisappear { fileWatcher?.stop() }
+            .onDisappear {
+                fileWatcher?.stop()
+                securityScopedDir?.stopAccessingSecurityScopedResource()
+            }
             .onAppear { loadURL(initialURL) }
             .onDrop(of: [.fileURL], isTargeted: nil) { providers in
                 guard let provider = providers.first else { return false }
@@ -632,9 +638,9 @@ struct FileView: View {
 
     private var contentArea: some View {
         HStack(spacing: 0) {
-            if showSidebar && (!siblingFiles.isEmpty || !headings.isEmpty) {
+            if showSidebar {
                 VStack(spacing: 0) {
-                    if !siblingFiles.isEmpty {
+                    if fileURL != nil {
                         SidebarSectionHeader(title: "FILES", isExpanded: $showFiles)
                         if showFiles {
                             VStack(spacing: 0) {
@@ -654,6 +660,19 @@ struct FileView: View {
                                 }
                                 FilesSidebar(files: siblingFiles, currentFile: fileURL) { url in
                                     openSiblingFile(url)
+                                }
+                                if !hasDirectoryAccess {
+                                    Button { grantDirectoryAccess() } label: {
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "folder.badge.plus")
+                                            Text("Grant folder access for live reload")
+                                        }
+                                        .font(.system(size: 10))
+                                    }
+                                    .buttonStyle(.plain)
+                                    .foregroundStyle(Color.accentColor)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 4)
                                 }
                             }
                             .frame(height: effectiveFilesHeight)
@@ -684,8 +703,17 @@ struct FileView: View {
             let icon = showDiffHighlights ? "plus.forwardslash.minus" : "checkmark.circle.fill"
             let color: Color = showDiffHighlights ? .orange : .green
             Image(systemName: icon).foregroundStyle(color)
-            Text(toastMessage)
             if showDiffHighlights {
+                Button {
+                    scrollToDiffTrigger += 1
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(toastMessage)
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 9))
+                    }
+                }
+                .buttonStyle(.plain)
                 Button("Hide diff") {
                     showDiffHighlights = false
                     clearDiffTrigger += 1
@@ -694,6 +722,8 @@ struct FileView: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(Color.accentColor)
                 .fontWeight(.semibold)
+            } else {
+                Text(toastMessage)
             }
         }
         .font(.system(size: 12, weight: .medium))
@@ -788,7 +818,7 @@ struct FileView: View {
     }
 
     private var markdownWebView: some View {
-        MarkdownWebView(markdown: currentPageHTML.isEmpty ? markdown : currentPageHTML, zoomLevel: $zoomLevel, search: search, activeSearchTerms: $activeSearchTerms, searchStack: $searchStack, printTrigger: printTrigger, exportPDFTrigger: exportPDFTrigger, copyRichTextTrigger: copyRichTextTrigger, tocScrollTarget: tocScrollTarget, scrollToTopTrigger: scrollToTopTrigger, diffHunks: diffHunks, applyDiffTrigger: applyDiffTrigger, clearDiffTrigger: clearDiffTrigger)
+        MarkdownWebView(markdown: currentPageHTML.isEmpty ? markdown : currentPageHTML, zoomLevel: $zoomLevel, search: search, activeSearchTerms: $activeSearchTerms, searchStack: $searchStack, printTrigger: printTrigger, exportPDFTrigger: exportPDFTrigger, copyRichTextTrigger: copyRichTextTrigger, tocScrollTarget: tocScrollTarget, scrollToTopTrigger: scrollToTopTrigger, diffHunks: diffHunks, applyDiffTrigger: applyDiffTrigger, clearDiffTrigger: clearDiffTrigger, scrollToDiffTrigger: scrollToDiffTrigger)
     }
 
     private var filteredSuggestions: [String] {
@@ -823,6 +853,27 @@ struct FileView: View {
     private func performZoomOut() { zoomLevel = max(0.25, zoomLevel - 0.1) }
     private func performZoomReset() { zoomLevel = 1.0 }
     private func performCopyRichText() { copyRichTextTrigger += 1 }
+    private func grantDirectoryAccess() {
+        guard let fileURL else { return }
+        let dir = fileURL.deletingLastPathComponent()
+        let panel = NSOpenPanel()
+        panel.directoryURL = dir
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.message = "Grant access to this folder for live file reload and sidebar"
+        panel.prompt = "Allow"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        // Save bookmark
+        DirectoryBookmarks.saveBookmark(forDirectory: url)
+        // Start accessing
+        securityScopedDir?.stopAccessingSecurityScopedResource()
+        if url.startAccessingSecurityScopedResource() {
+            securityScopedDir = url
+        }
+        hasDirectoryAccess = true
+        updateSiblingFiles()
+    }
     private func performCompare() {
         guard let fileURL else { return }
         let panel = NSOpenPanel()
@@ -918,6 +969,15 @@ struct FileView: View {
         defer { url.stopAccessingSecurityScopedResource() }
         // Save directory bookmark for re-reading after atomic saves
         DirectoryBookmarks.saveBookmark(for: url)
+        // Keep directory access alive for file watcher re-reads
+        securityScopedDir?.stopAccessingSecurityScopedResource()
+        let dir = url.deletingLastPathComponent()
+        if dir.startAccessingSecurityScopedResource() {
+            securityScopedDir = dir
+        } else {
+            securityScopedDir = DirectoryBookmarks.startAccessing(for: url)
+        }
+        hasDirectoryAccess = (securityScopedDir != nil)
 
         if let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
            let size = attrs[.size] as? UInt64,
@@ -1022,9 +1082,6 @@ struct FileView: View {
     private func updateSiblingFiles() {
         guard let fileURL else { siblingFiles = []; return }
         let dir = fileURL.deletingLastPathComponent()
-        // Use directory bookmark for sandbox access
-        let dirAccess = DirectoryBookmarks.startAccessing(for: fileURL)
-        defer { DirectoryBookmarks.stopAccessing(dirAccess) }
         guard let contents = try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) else {
             siblingFiles = []
             return
@@ -1041,20 +1098,19 @@ struct FileView: View {
             if currentURL != self.fileURL {
                 self.fileURL = currentURL
             }
-            // Use directory bookmark for sandbox access after atomic saves
-            let dirAccess = DirectoryBookmarks.startAccessing(for: currentURL)
-            defer { DirectoryBookmarks.stopAccessing(dirAccess) }
             // Re-check file size on reload to prevent OOM
             if let attrs = try? FileManager.default.attributesOfItem(atPath: currentURL.path),
                let size = attrs[.size] as? UInt64,
                size > Self.maxFileSize { return }
             let newContent = HTMLBuilder.readFileWithFallback(url: currentURL)
+            // If sandbox blocks re-reading after atomic save, skip silently
+            if newContent.hasPrefix("# Unable to read file") { return }
             if newContent != self.markdown {
                 let oldContent = self.markdown
                 self.markdown = newContent
                 // Compute diff and show highlights
                 let hunks = MarkdownRenderer.lineDiff(old: oldContent, new: newContent)
-                self.diffHunks = MarkdownRenderer.mapHunksToBlocks(hunks: hunks, newMarkdown: newContent)
+                self.diffHunks = MarkdownRenderer.renderHunkText(hunks: hunks)
                 self.showDiffHighlights = true
                 self.applyDiffTrigger += 1
                 self.showDiffToast()

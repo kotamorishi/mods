@@ -460,20 +460,36 @@ struct MarkdownRenderer {
     struct DiffHunk {
         var removedLines: [String]
         var addedLines: [String]
-        var removedHTML: String = ""  // rendered HTML for removed lines
-        var addedHTML: String = ""    // rendered HTML for added lines
-        var blockIndex: Int = 0      // index of the top-level block (nth child of #content)
-        var subIndex: Int = -1       // index of child within block (e.g., nth <li> in <ul>), -1 = before entire block
+        var removedHTML: String = ""  // plain text for removed lines (markdown stripped)
+        var addedHTML: String = ""    // plain text for added lines (markdown stripped)
     }
 
-    /// Render a set of markdown lines into plain text (strip markdown formatting).
+    /// Strip markdown formatting from lines to produce clean readable text.
     static func renderLinesToText(_ lines: [String]) -> [String] {
         lines.map { line in
-            let html = renderToHTML(line)
-            // Strip HTML tags to get plain text
-            let text = html.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            return text.isEmpty ? line : text
+            var t = line
+            // Table rows: strip pipes and clean up
+            if t.contains("|") {
+                t = t.trimmingCharacters(in: .whitespaces)
+                if t.hasPrefix("|") { t = String(t.dropFirst()) }
+                if t.hasSuffix("|") { t = String(t.dropLast()) }
+                // Skip separator rows (|:---|:---|)
+                if t.range(of: "^[\\s:|-]+$", options: .regularExpression) != nil { return "" }
+                t = t.components(separatedBy: "|").map { $0.trimmingCharacters(in: .whitespaces) }.joined(separator: " | ")
+            }
+            // Strip markdown inline formatting
+            t = t.replacingOccurrences(of: "\\*\\*(.+?)\\*\\*", with: "$1", options: .regularExpression)
+            t = t.replacingOccurrences(of: "\\*(.+?)\\*", with: "$1", options: .regularExpression)
+            t = t.replacingOccurrences(of: "~~(.+?)~~", with: "$1", options: .regularExpression)
+            t = t.replacingOccurrences(of: "`(.+?)`", with: "$1", options: .regularExpression)
+            // Strip heading markers
+            t = t.replacingOccurrences(of: "^#{1,6}\\s+", with: "", options: .regularExpression)
+            // Strip list markers
+            t = t.replacingOccurrences(of: "^\\s*[-*+]\\s+", with: "", options: .regularExpression)
+            t = t.replacingOccurrences(of: "^\\s*\\d+\\.\\s+", with: "", options: .regularExpression)
+            // Strip task list markers
+            t = t.replacingOccurrences(of: "^\\[[ xX]\\]\\s*", with: "", options: .regularExpression)
+            return t.trimmingCharacters(in: .whitespaces)
         }
     }
 
@@ -482,44 +498,55 @@ struct MarkdownRenderer {
         let oldLines = old.components(separatedBy: "\n")
         let newLines = new.components(separatedBy: "\n")
 
-        // Simple LCS-based diff
-        let n = oldLines.count, m = newLines.count
-        // Build LCS table
-        var dp = [[Int]](repeating: [Int](repeating: 0, count: m + 1), count: n + 1)
-        for i in 1...max(n, 1) {
-            guard i <= n else { break }
-            for j in 1...max(m, 1) {
-                guard j <= m else { break }
-                if oldLines[i - 1] == newLines[j - 1] {
-                    dp[i][j] = dp[i - 1][j - 1] + 1
-                } else {
-                    dp[i][j] = max(dp[i - 1][j], dp[i][j - 1])
-                }
-            }
-        }
-
-        // Backtrack to get edit script with line numbers in new text
         struct Edit {
             enum Kind { case keep, remove, add }
             let kind: Kind
             let line: String
-            let newLineNum: Int // line number in new text (-1 for removed)
         }
+
         var edits: [Edit] = []
-        var i = n, j = m
-        while i > 0 || j > 0 {
-            if i > 0 && j > 0 && oldLines[i - 1] == newLines[j - 1] {
-                edits.append(Edit(kind: .keep, line: oldLines[i - 1], newLineNum: j - 1))
-                i -= 1; j -= 1
-            } else if j > 0 && (i == 0 || dp[i][j - 1] >= dp[i - 1][j]) {
-                edits.append(Edit(kind: .add, line: newLines[j - 1], newLineNum: j - 1))
-                j -= 1
-            } else {
-                edits.append(Edit(kind: .remove, line: oldLines[i - 1], newLineNum: -1))
-                i -= 1
+
+        // Fast path: same line count → direct line-by-line comparison
+        if oldLines.count == newLines.count {
+            for i in 0..<oldLines.count {
+                if oldLines[i] == newLines[i] {
+                    edits.append(Edit(kind: .keep, line: oldLines[i]))
+                } else {
+                    edits.append(Edit(kind: .remove, line: oldLines[i]))
+                    edits.append(Edit(kind: .add, line: newLines[i]))
+                }
             }
+        } else {
+            // LCS-based diff for different line counts
+            let n = oldLines.count, m = newLines.count
+            var dp = [[Int]](repeating: [Int](repeating: 0, count: m + 1), count: n + 1)
+            for i in 1...max(n, 1) {
+                guard i <= n else { break }
+                for j in 1...max(m, 1) {
+                    guard j <= m else { break }
+                    if oldLines[i - 1] == newLines[j - 1] {
+                        dp[i][j] = dp[i - 1][j - 1] + 1
+                    } else {
+                        dp[i][j] = max(dp[i - 1][j], dp[i][j - 1])
+                    }
+                }
+            }
+
+            var i = n, j = m
+            while i > 0 || j > 0 {
+                if i > 0 && j > 0 && oldLines[i - 1] == newLines[j - 1] {
+                    edits.append(Edit(kind: .keep, line: oldLines[i - 1]))
+                    i -= 1; j -= 1
+                } else if j > 0 && (i == 0 || dp[i][j - 1] >= dp[i - 1][j]) {
+                    edits.append(Edit(kind: .add, line: newLines[j - 1]))
+                    j -= 1
+                } else {
+                    edits.append(Edit(kind: .remove, line: oldLines[i - 1]))
+                    i -= 1
+                }
+            }
+            edits.reverse()
         }
-        edits.reverse()
 
         // Group consecutive changes into hunks
         var hunks: [DiffHunk] = []
@@ -531,102 +558,27 @@ struct MarkdownRenderer {
             case .remove, .add:
                 var removed: [String] = []
                 var added: [String] = []
-                var firstAddedLine = -1
                 while idx < edits.count {
                     switch edits[idx].kind {
                     case .remove: removed.append(edits[idx].line); idx += 1
-                    case .add:
-                        if firstAddedLine < 0 { firstAddedLine = edits[idx].newLineNum }
-                        added.append(edits[idx].line); idx += 1
+                    case .add: added.append(edits[idx].line); idx += 1
                     case .keep: break
                     }
                     if idx < edits.count && edits[idx].kind == .keep { break }
                 }
-                hunks.append(DiffHunk(removedLines: removed, addedLines: added, blockIndex: 0))
-                // Store raw line number temporarily, mapHunksToBlocks will convert to block index
-                if !hunks.isEmpty {
-                    hunks[hunks.count - 1].blockIndex = firstAddedLine >= 0 ? firstAddedLine : 0
-                }
+                hunks.append(DiffHunk(removedLines: removed, addedLines: added))
             }
         }
         return hunks
     }
 
-    /// Map diff hunk line numbers to block indices using cmark AST.
-    /// Each top-level AST node corresponds to one direct child of `#content` in the rendered HTML.
-    static func mapHunksToBlocks(hunks: [DiffHunk], newMarkdown: String) -> [DiffHunk] {
-        _ = extensionsRegistered
-        let (frontmatter, body) = extractFrontmatter(newMarkdown)
-        // Frontmatter lines offset: diff line numbers are in the original file,
-        // but cmark parses only the body, so cmark lines are relative to body.
-        let fmLineCount = frontmatter != nil
-            ? newMarkdown.components(separatedBy: "\n").count - body.components(separatedBy: "\n").count
-            : 0
-
-        let parser = cmark_parser_new(Int32(CMARK_OPT_DEFAULT | CMARK_OPT_FOOTNOTES))
-        defer { cmark_parser_free(parser) }
-        let extensionNames = ["table", "strikethrough", "autolink", "tagfilter", "tasklist"]
-        for name in extensionNames {
-            if let ext = cmark_find_syntax_extension(name) {
-                cmark_parser_attach_syntax_extension(parser, ext)
-            }
-        }
-        cmark_parser_feed(parser, body, body.utf8.count)
-        guard let doc = cmark_parser_finish(parser) else { return hunks }
-        defer { cmark_node_free(doc) }
-
-        // Walk top-level children, collect (index, startLine, endLine, children line ranges)
-        struct ASTBlock {
-            let index: Int
-            let startLine: Int
-            let endLine: Int
-            let children: [(startLine: Int, endLine: Int)] // for lists/tables: child line ranges
-        }
-        var blocks: [ASTBlock] = []
-        var node = cmark_node_first_child(doc)
-        var idx = 0
-        while let n = node {
-            let start = Int(cmark_node_get_start_line(n)) - 1 + fmLineCount
-            let end = Int(cmark_node_get_end_line(n)) - 1 + fmLineCount
-            // Collect children for lists and tables
-            var childRanges: [(startLine: Int, endLine: Int)] = []
-            let nodeType = cmark_node_get_type(n)
-            let isContainerNode = cmark_node_first_child(n) != nil && (nodeType == CMARK_NODE_LIST || String(cString: cmark_node_get_type_string(n)) == "table")
-            if isContainerNode {
-                var child = cmark_node_first_child(n)
-                while let c = child {
-                    let cs = Int(cmark_node_get_start_line(c)) - 1 + fmLineCount
-                    let ce = Int(cmark_node_get_end_line(c)) - 1 + fmLineCount
-                    childRanges.append((cs, ce))
-                    child = cmark_node_next(c)
-                }
-            }
-            blocks.append(ASTBlock(index: idx, startLine: start, endLine: end, children: childRanges))
-            node = cmark_node_next(n)
-            idx += 1
-        }
-
-        return hunks.map { hunk in
+    /// Render plain text for diff hunks (strip markdown formatting).
+    /// DOM text search in JS handles positioning — no AST mapping needed.
+    static func renderHunkText(hunks: [DiffHunk]) -> [DiffHunk] {
+        hunks.map { hunk in
             var h = hunk
-            let targetLine = h.blockIndex // raw 0-based line number from lineDiff
-            // Render lines to plain text (strip markdown)
             h.removedHTML = renderLinesToText(h.removedLines).joined(separator: "\n")
             h.addedHTML = renderLinesToText(h.addedLines).joined(separator: "\n")
-            for block in blocks {
-                if targetLine >= block.startLine && targetLine <= block.endLine {
-                    h.blockIndex = block.index
-                    if !block.children.isEmpty {
-                        for (ci, child) in block.children.enumerated() {
-                            if targetLine >= child.startLine && targetLine <= child.endLine {
-                                h.subIndex = ci
-                                break
-                            }
-                        }
-                    }
-                    return h
-                }
-            }
-            h.blockIndex = max(0, blocks.count - 1)
             return h
         }
     }

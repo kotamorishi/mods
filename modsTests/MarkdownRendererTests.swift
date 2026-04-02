@@ -168,33 +168,26 @@ final class MarkdownRendererTests: XCTestCase {
         XCTAssertTrue(html.contains("Test"))
     }
 
-    // MARK: - mapHunksToBlocks
+    // MARK: - renderHunkText
 
-    func testMapHunksToBlocksParagraph() {
-        let md = "# Title\n\nParagraph one.\n\nParagraph two."
-        // Change in paragraph two (line 4, 0-based)
-        var hunk = MarkdownRenderer.DiffHunk(removedLines: ["old"], addedLines: ["new"], blockIndex: 4)
-        let mapped = MarkdownRenderer.mapHunksToBlocks(hunks: [hunk], newMarkdown: md)
-        // Block 0: # Title, Block 1: Paragraph one, Block 2: Paragraph two
-        XCTAssertEqual(mapped[0].blockIndex, 2)
+    func testRenderHunkTextStripsMarkdown() {
+        let hunk = MarkdownRenderer.DiffHunk(removedLines: ["## Old heading"], addedLines: ["## New heading"])
+        let rendered = MarkdownRenderer.renderHunkText(hunks: [hunk])
+        XCTAssertEqual(rendered[0].removedHTML, "Old heading")
+        XCTAssertEqual(rendered[0].addedHTML, "New heading")
     }
 
-    func testMapHunksToBlocksWithFrontmatter() {
-        let md = "---\ntitle: Test\n---\n\n# Title\n\nParagraph."
-        // Paragraph is at line 6 (0-based) in the full text
-        var hunk = MarkdownRenderer.DiffHunk(removedLines: ["old"], addedLines: ["new"], blockIndex: 6)
-        let mapped = MarkdownRenderer.mapHunksToBlocks(hunks: [hunk], newMarkdown: md)
-        // Block 0: # Title, Block 1: Paragraph
-        XCTAssertEqual(mapped[0].blockIndex, 1)
+    func testRenderHunkTextStripsTablePipes() {
+        let hunk = MarkdownRenderer.DiffHunk(removedLines: ["| A | B |"], addedLines: ["| C | D |"])
+        let rendered = MarkdownRenderer.renderHunkText(hunks: [hunk])
+        XCTAssertEqual(rendered[0].removedHTML, "A | B")
+        XCTAssertEqual(rendered[0].addedHTML, "C | D")
     }
 
-    func testMapHunksToBlocksList() {
-        let md = "# Title\n\n- item1\n- item2\n- item3"
-        // Change item2 at line 3 (0-based)
-        var hunk = MarkdownRenderer.DiffHunk(removedLines: ["old"], addedLines: ["new"], blockIndex: 3)
-        let mapped = MarkdownRenderer.mapHunksToBlocks(hunks: [hunk], newMarkdown: md)
-        // Block 0: # Title, Block 1: list
-        XCTAssertEqual(mapped[0].blockIndex, 1)
-        XCTAssertEqual(mapped[0].subIndex, 1) // second list item
+    func testRenderHunkTextStripsListMarkers() {
+        let hunk = MarkdownRenderer.DiffHunk(removedLines: ["- old item"], addedLines: ["- new item"])
+        let rendered = MarkdownRenderer.renderHunkText(hunks: [hunk])
+        XCTAssertEqual(rendered[0].removedHTML, "old item")
+        XCTAssertEqual(rendered[0].addedHTML, "new item")
     }
 }
