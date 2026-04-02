@@ -29,8 +29,12 @@ struct MarkdownWebView: NSViewRepresentable {
     @Binding var searchStack: [[String]]
     let printTrigger: Int
     let exportPDFTrigger: Int
+    let copyRichTextTrigger: Int
     let tocScrollTarget: String
     let scrollToTopTrigger: Int
+    let diffHunks: [MarkdownRenderer.DiffHunk]
+    let applyDiffTrigger: Int
+    let clearDiffTrigger: Int
 
     /// WKWebView subclass that intercepts drag registration and handles file drops and magnification.
     class ModsWebView: WKWebView {
@@ -128,6 +132,9 @@ struct MarkdownWebView: NSViewRepresentable {
         var lastZoomLevel: Double = 1.0
         var lastPrintTrigger: Int = 0
         var lastExportPDFTrigger: Int = 0
+        var lastCopyRichTextTrigger: Int = 0
+        var lastApplyDiffTrigger: Int = 0
+        var lastClearDiffTrigger: Int = 0
         var lastTOCTarget: String = ""
         var pendingKeywords: [String] = []
         var termsUpdateHandler: ((String) -> Void)?
@@ -323,6 +330,22 @@ struct MarkdownWebView: NSViewRepresentable {
             (webView as? ModsWebView)?.printContent()
         }
 
+        // Copy as rich text
+        if context.coordinator.lastCopyRichTextTrigger != copyRichTextTrigger {
+            context.coordinator.lastCopyRichTextTrigger = copyRichTextTrigger
+            webView.evaluateJavaScript("document.getElementById('content').innerHTML") { result, _ in
+                guard let html = result as? String else { return }
+                let pasteboard = NSPasteboard.general
+                pasteboard.clearContents()
+                // Write as HTML (rich text) and plain text fallback
+                if let data = html.data(using: .utf8) {
+                    pasteboard.setData(data, forType: .html)
+                }
+                let plain = html.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+                pasteboard.setString(plain, forType: .string)
+            }
+        }
+
         // Export PDF
         if context.coordinator.lastExportPDFTrigger != exportPDFTrigger {
             context.coordinator.lastExportPDFTrigger = exportPDFTrigger
@@ -341,6 +364,80 @@ struct MarkdownWebView: NSViewRepresentable {
             """
             webView.evaluateJavaScript(js)
         }
+
+        // Apply diff highlights
+        if context.coordinator.lastApplyDiffTrigger != applyDiffTrigger {
+            context.coordinator.lastApplyDiffTrigger = applyDiffTrigger
+            // Delay to let content render first
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                self.applyDiffHighlights(webView: webView)
+            }
+        }
+
+        // Clear diff highlights
+        if context.coordinator.lastClearDiffTrigger != clearDiffTrigger {
+            context.coordinator.lastClearDiffTrigger = clearDiffTrigger
+            let js = """
+            (function() {
+                document.querySelectorAll('.mods-diff-block').forEach(function(el) { el.remove(); });
+            })();
+            """
+            webView.evaluateJavaScript(js)
+        }
+    }
+
+    private func applyDiffHighlights(webView: WKWebView) {
+        guard !diffHunks.isEmpty else { return }
+        var hunksJSON: [String] = []
+        for hunk in diffHunks {
+            let removedRendered = HTMLBuilder.jsonEncode(hunk.removedHTML)
+            let addedRendered = HTMLBuilder.jsonEncode(hunk.addedHTML)
+            hunksJSON.append("{removed:\(removedRendered),added:\(addedRendered),blockIndex:\(hunk.blockIndex),subIndex:\(hunk.subIndex)}")
+        }
+        let js = """
+        (function() {
+            var hunks = [\(hunksJSON.joined(separator: ","))];
+            var content = document.getElementById('content');
+            if (!content) return;
+            var children = Array.from(content.children);
+            var offset = children[0] && children[0].classList.contains('mods-frontmatter') ? 1 : 0;
+
+            hunks.forEach(function(hunk) {
+                var diffBlock = document.createElement('div');
+                diffBlock.className = 'mods-diff-block';
+                var removedLines = hunk.removed.split('\\n').filter(function(l) { return l.trim(); });
+                var addedLines = hunk.added.split('\\n').filter(function(l) { return l.trim(); });
+                removedLines.forEach(function(line) {
+                    var div = document.createElement('div');
+                    div.className = 'mods-diff-line mods-diff-del';
+                    div.textContent = '- ' + line;
+                    diffBlock.appendChild(div);
+                });
+                addedLines.forEach(function(line) {
+                    var div = document.createElement('div');
+                    div.className = 'mods-diff-line mods-diff-add';
+                    div.textContent = '+ ' + line;
+                    diffBlock.appendChild(div);
+                });
+                if (!diffBlock.hasChildNodes()) return;
+
+                var target = children[hunk.blockIndex + offset];
+                if (target && hunk.subIndex >= 0) {
+                    var sub = target.children[hunk.subIndex];
+                    if (sub) {
+                        target.insertBefore(diffBlock, sub);
+                    } else {
+                        target.appendChild(diffBlock);
+                    }
+                } else if (target) {
+                    target.parentNode.insertBefore(diffBlock, target);
+                } else {
+                    content.appendChild(diffBlock);
+                }
+            });
+        })();
+        """
+        webView.evaluateJavaScript(js)
     }
 
     private func exportPDF(webView: WKWebView) {

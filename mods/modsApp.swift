@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import WebKit
 
 /// Handles file open events from Finder (double-click, "Open With").
 class AppDelegate: NSObject, NSApplicationDelegate {
@@ -67,6 +68,8 @@ struct modsApp: App {
     @FocusedValue(\.zoomResetAction) private var zoomResetAction
     @FocusedValue(\.findNextAction) private var findNextAction
     @FocusedValue(\.findPrevAction) private var findPrevAction
+    @FocusedValue(\.copyRichTextAction) private var copyRichTextAction
+    @FocusedValue(\.compareAction) private var compareAction
 
     var body: some Scene {
         // Welcome window (no file)
@@ -88,6 +91,12 @@ struct modsApp: App {
                             openWindow(value: fileURL)
                         }
                     }
+            }
+        }
+        // Diff comparison windows
+        WindowGroup(for: DiffData.self) { $data in
+            if let data {
+                DiffView(data: data)
             }
         }
         .commands {
@@ -137,7 +146,18 @@ struct modsApp: App {
                 }
                 .keyboardShortcut("0", modifiers: .command)
             }
+            CommandGroup(after: .pasteboard) {
+                Button("Copy as Rich Text") {
+                    copyRichTextAction?()
+                }
+                .keyboardShortcut("c", modifiers: [.command, .shift])
+            }
             CommandGroup(replacing: .printItem) {
+                Button("Compare with...") {
+                    compareAction?()
+                }
+                .keyboardShortcut("d", modifiers: [.command, .shift])
+                Divider()
                 Button("Print...") {
                     printAction?()
                 }
@@ -388,6 +408,76 @@ enum URLValidator {
     }
 }
 
+/// Data for side-by-side diff comparison window.
+struct DiffData: Codable, Hashable {
+    let leftURL: URL
+    let rightURL: URL
+}
+
+/// Side-by-side comparison view for two markdown files.
+struct DiffView: View {
+    let data: DiffData
+    @State private var leftMarkdown: String = ""
+    @State private var rightMarkdown: String = ""
+
+    var body: some View {
+        HStack(spacing: 0) {
+            VStack(spacing: 0) {
+                Text(data.leftURL.lastPathComponent)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 6)
+                    .background(.bar)
+                Divider()
+                DiffWebView(html: renderHTML(leftMarkdown))
+            }
+            Divider()
+            VStack(spacing: 0) {
+                Text(data.rightURL.lastPathComponent)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 6)
+                    .background(.bar)
+                Divider()
+                DiffWebView(html: renderHTML(rightMarkdown))
+            }
+        }
+        .frame(minWidth: 800, minHeight: 400)
+        .navigationTitle("\(data.leftURL.lastPathComponent) ↔ \(data.rightURL.lastPathComponent)")
+        .onAppear {
+            leftMarkdown = HTMLBuilder.readFileWithFallback(url: data.leftURL)
+            rightMarkdown = HTMLBuilder.readFileWithFallback(url: data.rightURL)
+        }
+    }
+
+    private func renderHTML(_ markdown: String) -> String {
+        let bodyHTML = MarkdownRenderer.renderToHTML(markdown)
+        return HTMLBuilder.buildHTML(bodyHTML: bodyHTML)
+    }
+}
+
+/// Simple read-only WKWebView for diff display.
+struct DiffWebView: NSViewRepresentable {
+    let html: String
+
+    func makeNSView(context: Context) -> WKWebView {
+        let webView = WKWebView(frame: .zero, configuration: HTMLBuilder.webViewConfiguration())
+        webView.autoresizingMask = [.width, .height]
+        if !html.isEmpty {
+            webView.loadHTMLString(html, baseURL: nil)
+        }
+        return webView
+    }
+
+    func updateNSView(_ webView: WKWebView, context: Context) {
+        if !html.isEmpty {
+            webView.loadHTMLString(html, baseURL: nil)
+        }
+    }
+}
+
 /// File viewer window: shows rendered markdown for a single file.
 struct FileView: View {
     let initialURL: URL
@@ -416,6 +506,13 @@ struct FileView: View {
     @State private var currentPageHTML: String = ""
     @State private var siblingFiles: [URL] = []
     @State private var scrollToTopTrigger: Int = 0
+    @State private var copyRichTextTrigger: Int = 0
+    @State private var showToast: Bool = false
+    @State private var toastMessage: String = ""
+    @State private var showDiffHighlights: Bool = false
+    @State private var diffHunks: [MarkdownRenderer.DiffHunk] = []
+    @State private var applyDiffTrigger: Int = 0
+    @State private var clearDiffTrigger: Int = 0
 
     private static func parseHeadings(_ markdown: String) -> [(level: Int, text: String, id: String)] {
         var counts: [String: Int] = [:]
@@ -480,12 +577,19 @@ struct FileView: View {
             .focusedSceneValue(\.zoomResetAction, performZoomReset)
             .focusedSceneValue(\.findNextAction, performFindNext)
             .focusedSceneValue(\.findPrevAction, performFindPrev)
+            .focusedSceneValue(\.copyRichTextAction, performCopyRichText)
+            .focusedSceneValue(\.compareAction, performCompare)
     }
 
     private var mainLayout: some View {
-        VStack(spacing: 0) {
-            contentArea
-            bottomBar
+        ZStack(alignment: .bottom) {
+            VStack(spacing: 0) {
+                contentArea
+                bottomBar
+            }
+            if showToast {
+                toastView
+            }
         }
         .frame(minWidth: 400, minHeight: 300)
         .navigationTitle(fileURL?.lastPathComponent ?? "mods")
@@ -575,6 +679,33 @@ struct FileView: View {
     }
 
     @ViewBuilder
+    private var toastView: some View {
+        HStack(spacing: 8) {
+            let icon = showDiffHighlights ? "plus.forwardslash.minus" : "checkmark.circle.fill"
+            let color: Color = showDiffHighlights ? .orange : .green
+            Image(systemName: icon).foregroundStyle(color)
+            Text(toastMessage)
+            if showDiffHighlights {
+                Button("Hide diff") {
+                    showDiffHighlights = false
+                    clearDiffTrigger += 1
+                    withAnimation(.easeInOut(duration: 0.3)) { showToast = false }
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.accentColor)
+                .fontWeight(.semibold)
+            }
+        }
+        .font(.system(size: 12, weight: .medium))
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(.regularMaterial, in: Capsule())
+        .padding(.bottom, 32)
+        .transition(.opacity.combined(with: .move(edge: .bottom)))
+    }
+
+    @ViewBuilder
     private var bottomBar: some View {
         if !markdown.isEmpty || !activeSearchTerms.isEmpty || !searchStack.isEmpty {
             VStack(spacing: 0) {
@@ -657,7 +788,7 @@ struct FileView: View {
     }
 
     private var markdownWebView: some View {
-        MarkdownWebView(markdown: currentPageHTML.isEmpty ? markdown : currentPageHTML, zoomLevel: $zoomLevel, search: search, activeSearchTerms: $activeSearchTerms, searchStack: $searchStack, printTrigger: printTrigger, exportPDFTrigger: exportPDFTrigger, tocScrollTarget: tocScrollTarget, scrollToTopTrigger: scrollToTopTrigger)
+        MarkdownWebView(markdown: currentPageHTML.isEmpty ? markdown : currentPageHTML, zoomLevel: $zoomLevel, search: search, activeSearchTerms: $activeSearchTerms, searchStack: $searchStack, printTrigger: printTrigger, exportPDFTrigger: exportPDFTrigger, copyRichTextTrigger: copyRichTextTrigger, tocScrollTarget: tocScrollTarget, scrollToTopTrigger: scrollToTopTrigger, diffHunks: diffHunks, applyDiffTrigger: applyDiffTrigger, clearDiffTrigger: clearDiffTrigger)
     }
 
     private var filteredSuggestions: [String] {
@@ -691,6 +822,32 @@ struct FileView: View {
     private func performZoomIn() { zoomLevel = min(5.0, zoomLevel + 0.1) }
     private func performZoomOut() { zoomLevel = max(0.25, zoomLevel - 0.1) }
     private func performZoomReset() { zoomLevel = 1.0 }
+    private func performCopyRichText() { copyRichTextTrigger += 1 }
+    private func performCompare() {
+        guard let fileURL else { return }
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.init(filenameExtension: "md")!]
+        panel.allowsMultipleSelection = false
+        panel.message = "Select a file to compare with"
+        guard panel.runModal() == .OK, let rightURL = panel.url else { return }
+        openWindow(value: DiffData(leftURL: fileURL, rightURL: rightURL))
+    }
+    private func showToast(_ message: String, autoDismiss: Bool = true) {
+        toastMessage = message
+        withAnimation(.easeInOut(duration: 0.2)) { showToast = true }
+        if autoDismiss {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                withAnimation(.easeInOut(duration: 0.3)) { self.showToast = false }
+            }
+        }
+    }
+    private func showDiffToast() {
+        let addCount = diffHunks.reduce(0) { $0 + $1.addedLines.count }
+        let delCount = diffHunks.reduce(0) { $0 + $1.removedLines.count }
+        let parts = [addCount > 0 ? "+\(addCount)" : nil, delCount > 0 ? "-\(delCount)" : nil].compactMap { $0 }
+        let summary = parts.isEmpty ? "File updated" : "File updated (\(parts.joined(separator: " ")))"
+        showToast(summary, autoDismiss: false)
+    }
     private func performFindNext() {
         let term = search.lastNavigatedTerm.isEmpty ? activeSearchTerms.last?.term ?? "" : search.lastNavigatedTerm
         guard !term.isEmpty else { return }
@@ -759,6 +916,8 @@ struct FileView: View {
         NSDocumentController.shared.noteNewRecentDocumentURL(url)
         _ = url.startAccessingSecurityScopedResource()
         defer { url.stopAccessingSecurityScopedResource() }
+        // Save directory bookmark for re-reading after atomic saves
+        DirectoryBookmarks.saveBookmark(for: url)
 
         if let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
            let size = attrs[.size] as? UInt64,
@@ -863,6 +1022,9 @@ struct FileView: View {
     private func updateSiblingFiles() {
         guard let fileURL else { siblingFiles = []; return }
         let dir = fileURL.deletingLastPathComponent()
+        // Use directory bookmark for sandbox access
+        let dirAccess = DirectoryBookmarks.startAccessing(for: fileURL)
+        defer { DirectoryBookmarks.stopAccessing(dirAccess) }
         guard let contents = try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) else {
             siblingFiles = []
             return
@@ -879,13 +1041,23 @@ struct FileView: View {
             if currentURL != self.fileURL {
                 self.fileURL = currentURL
             }
+            // Use directory bookmark for sandbox access after atomic saves
+            let dirAccess = DirectoryBookmarks.startAccessing(for: currentURL)
+            defer { DirectoryBookmarks.stopAccessing(dirAccess) }
             // Re-check file size on reload to prevent OOM
             if let attrs = try? FileManager.default.attributesOfItem(atPath: currentURL.path),
                let size = attrs[.size] as? UInt64,
                size > Self.maxFileSize { return }
             let newContent = HTMLBuilder.readFileWithFallback(url: currentURL)
             if newContent != self.markdown {
+                let oldContent = self.markdown
                 self.markdown = newContent
+                // Compute diff and show highlights
+                let hunks = MarkdownRenderer.lineDiff(old: oldContent, new: newContent)
+                self.diffHunks = MarkdownRenderer.mapHunksToBlocks(hunks: hunks, newMarkdown: newContent)
+                self.showDiffHighlights = true
+                self.applyDiffTrigger += 1
+                self.showDiffToast()
             }
         }
         fileWatcher?.start()
@@ -935,6 +1107,12 @@ struct FindNextActionKey: FocusedValueKey {
 struct FindPrevActionKey: FocusedValueKey {
     typealias Value = () -> Void
 }
+struct CopyRichTextActionKey: FocusedValueKey {
+    typealias Value = () -> Void
+}
+struct CompareActionKey: FocusedValueKey {
+    typealias Value = () -> Void
+}
 
 extension FocusedValues {
     var openFileAction: (() -> Void)? {
@@ -980,6 +1158,14 @@ extension FocusedValues {
     var findPrevAction: (() -> Void)? {
         get { self[FindPrevActionKey.self] }
         set { self[FindPrevActionKey.self] = newValue }
+    }
+    var copyRichTextAction: (() -> Void)? {
+        get { self[CopyRichTextActionKey.self] }
+        set { self[CopyRichTextActionKey.self] = newValue }
+    }
+    var compareAction: (() -> Void)? {
+        get { self[CompareActionKey.self] }
+        set { self[CompareActionKey.self] = newValue }
     }
 }
 
