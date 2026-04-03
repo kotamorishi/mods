@@ -109,6 +109,7 @@ struct MarkdownRenderer {
         // enabling XSS via crafted markdown files.
         let options = CMARK_OPT_DEFAULT
             | CMARK_OPT_FOOTNOTES
+            | CMARK_OPT_SOURCEPOS
 
         let parser = cmark_parser_new(Int32(options))
         defer { cmark_parser_free(parser) }
@@ -455,133 +456,6 @@ struct MarkdownRenderer {
         return result
     }
 
-    // MARK: - Line Diff
-
-    struct DiffHunk {
-        var removedLines: [String]
-        var addedLines: [String]
-        var removedHTML: String = ""  // plain text for removed lines (markdown stripped)
-        var addedHTML: String = ""    // plain text for added lines (markdown stripped)
-    }
-
-    /// Strip markdown formatting from lines to produce clean readable text.
-    static func renderLinesToText(_ lines: [String]) -> [String] {
-        lines.map { line in
-            var t = line
-            // Table rows: strip pipes and clean up
-            if t.contains("|") {
-                t = t.trimmingCharacters(in: .whitespaces)
-                if t.hasPrefix("|") { t = String(t.dropFirst()) }
-                if t.hasSuffix("|") { t = String(t.dropLast()) }
-                // Skip separator rows (|:---|:---|)
-                if t.range(of: "^[\\s:|-]+$", options: .regularExpression) != nil { return "" }
-                t = t.components(separatedBy: "|").map { $0.trimmingCharacters(in: .whitespaces) }.joined(separator: " | ")
-            }
-            // Strip markdown inline formatting
-            t = t.replacingOccurrences(of: "\\*\\*(.+?)\\*\\*", with: "$1", options: .regularExpression)
-            t = t.replacingOccurrences(of: "\\*(.+?)\\*", with: "$1", options: .regularExpression)
-            t = t.replacingOccurrences(of: "~~(.+?)~~", with: "$1", options: .regularExpression)
-            t = t.replacingOccurrences(of: "`(.+?)`", with: "$1", options: .regularExpression)
-            // Strip heading markers
-            t = t.replacingOccurrences(of: "^#{1,6}\\s+", with: "", options: .regularExpression)
-            // Strip list markers
-            t = t.replacingOccurrences(of: "^\\s*[-*+]\\s+", with: "", options: .regularExpression)
-            t = t.replacingOccurrences(of: "^\\s*\\d+\\.\\s+", with: "", options: .regularExpression)
-            // Strip task list markers
-            t = t.replacingOccurrences(of: "^\\[[ xX]\\]\\s*", with: "", options: .regularExpression)
-            return t.trimmingCharacters(in: .whitespaces)
-        }
-    }
-
-    /// Compute sequential line-level diff hunks between old and new text.
-    static func lineDiff(old: String, new: String) -> [DiffHunk] {
-        let oldLines = old.components(separatedBy: "\n")
-        let newLines = new.components(separatedBy: "\n")
-
-        struct Edit {
-            enum Kind { case keep, remove, add }
-            let kind: Kind
-            let line: String
-        }
-
-        var edits: [Edit] = []
-
-        // Fast path: same line count → direct line-by-line comparison
-        if oldLines.count == newLines.count {
-            for i in 0..<oldLines.count {
-                if oldLines[i] == newLines[i] {
-                    edits.append(Edit(kind: .keep, line: oldLines[i]))
-                } else {
-                    edits.append(Edit(kind: .remove, line: oldLines[i]))
-                    edits.append(Edit(kind: .add, line: newLines[i]))
-                }
-            }
-        } else {
-            // LCS-based diff for different line counts
-            let n = oldLines.count, m = newLines.count
-            var dp = [[Int]](repeating: [Int](repeating: 0, count: m + 1), count: n + 1)
-            for i in 1...max(n, 1) {
-                guard i <= n else { break }
-                for j in 1...max(m, 1) {
-                    guard j <= m else { break }
-                    if oldLines[i - 1] == newLines[j - 1] {
-                        dp[i][j] = dp[i - 1][j - 1] + 1
-                    } else {
-                        dp[i][j] = max(dp[i - 1][j], dp[i][j - 1])
-                    }
-                }
-            }
-
-            var i = n, j = m
-            while i > 0 || j > 0 {
-                if i > 0 && j > 0 && oldLines[i - 1] == newLines[j - 1] {
-                    edits.append(Edit(kind: .keep, line: oldLines[i - 1]))
-                    i -= 1; j -= 1
-                } else if j > 0 && (i == 0 || dp[i][j - 1] >= dp[i - 1][j]) {
-                    edits.append(Edit(kind: .add, line: newLines[j - 1]))
-                    j -= 1
-                } else {
-                    edits.append(Edit(kind: .remove, line: oldLines[i - 1]))
-                    i -= 1
-                }
-            }
-            edits.reverse()
-        }
-
-        // Group consecutive changes into hunks
-        var hunks: [DiffHunk] = []
-        var idx = 0
-        while idx < edits.count {
-            switch edits[idx].kind {
-            case .keep:
-                idx += 1
-            case .remove, .add:
-                var removed: [String] = []
-                var added: [String] = []
-                while idx < edits.count {
-                    switch edits[idx].kind {
-                    case .remove: removed.append(edits[idx].line); idx += 1
-                    case .add: added.append(edits[idx].line); idx += 1
-                    case .keep: break
-                    }
-                    if idx < edits.count && edits[idx].kind == .keep { break }
-                }
-                hunks.append(DiffHunk(removedLines: removed, addedLines: added))
-            }
-        }
-        return hunks
-    }
-
-    /// Render plain text for diff hunks (strip markdown formatting).
-    /// DOM text search in JS handles positioning — no AST mapping needed.
-    static func renderHunkText(hunks: [DiffHunk]) -> [DiffHunk] {
-        hunks.map { hunk in
-            var h = hunk
-            h.removedHTML = renderLinesToText(h.removedLines).joined(separator: "\n")
-            h.addedHTML = renderLinesToText(h.addedLines).joined(separator: "\n")
-            return h
-        }
-    }
 }
 
 private extension Array {

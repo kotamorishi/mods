@@ -512,7 +512,8 @@ struct FileView: View {
     @State private var showToast: Bool = false
     @State private var toastMessage: String = ""
     @State private var showDiffHighlights: Bool = false
-    @State private var diffHunks: [MarkdownRenderer.DiffHunk] = []
+    @State private var diffOldHTML: String = ""
+    @State private var diffNewHTML: String = ""
     @State private var applyDiffTrigger: Int = 0
     @State private var clearDiffTrigger: Int = 0
     @State private var scrollToDiffTrigger: Int = 0
@@ -716,6 +717,8 @@ struct FileView: View {
                 .buttonStyle(.plain)
                 Button("Hide diff") {
                     showDiffHighlights = false
+                    diffOldHTML = ""
+                    diffNewHTML = ""
                     clearDiffTrigger += 1
                     withAnimation(.easeInOut(duration: 0.3)) { showToast = false }
                 }
@@ -818,7 +821,7 @@ struct FileView: View {
     }
 
     private var markdownWebView: some View {
-        MarkdownWebView(markdown: currentPageHTML.isEmpty ? markdown : currentPageHTML, zoomLevel: $zoomLevel, search: search, activeSearchTerms: $activeSearchTerms, searchStack: $searchStack, printTrigger: printTrigger, exportPDFTrigger: exportPDFTrigger, copyRichTextTrigger: copyRichTextTrigger, tocScrollTarget: tocScrollTarget, scrollToTopTrigger: scrollToTopTrigger, diffHunks: diffHunks, applyDiffTrigger: applyDiffTrigger, clearDiffTrigger: clearDiffTrigger, scrollToDiffTrigger: scrollToDiffTrigger)
+        MarkdownWebView(markdown: currentPageHTML.isEmpty ? markdown : currentPageHTML, zoomLevel: $zoomLevel, search: search, activeSearchTerms: $activeSearchTerms, searchStack: $searchStack, printTrigger: printTrigger, exportPDFTrigger: exportPDFTrigger, copyRichTextTrigger: copyRichTextTrigger, tocScrollTarget: tocScrollTarget, scrollToTopTrigger: scrollToTopTrigger, diffOldHTML: diffOldHTML, diffNewHTML: diffNewHTML, applyDiffTrigger: applyDiffTrigger, clearDiffTrigger: clearDiffTrigger, scrollToDiffTrigger: scrollToDiffTrigger)
     }
 
     private var filteredSuggestions: [String] {
@@ -892,10 +895,12 @@ struct FileView: View {
             }
         }
     }
-    private func showDiffToast() {
-        let addCount = diffHunks.reduce(0) { $0 + $1.addedLines.count }
-        let delCount = diffHunks.reduce(0) { $0 + $1.removedLines.count }
-        let parts = [addCount > 0 ? "+\(addCount)" : nil, delCount > 0 ? "-\(delCount)" : nil].compactMap { $0 }
+    private func showDiffToast(oldContent: String, newContent: String) {
+        let oldLines = oldContent.components(separatedBy: "\n")
+        let newLines = newContent.components(separatedBy: "\n")
+        let added = max(0, newLines.count - oldLines.count)
+        let removed = max(0, oldLines.count - newLines.count)
+        let parts = [added > 0 ? "+\(added)" : nil, removed > 0 ? "-\(removed)" : nil].compactMap { $0 }
         let summary = parts.isEmpty ? "File updated" : "File updated (\(parts.joined(separator: " ")))"
         showToast(summary, autoDismiss: false)
     }
@@ -1109,11 +1114,11 @@ struct FileView: View {
                 let oldContent = self.markdown
                 self.markdown = newContent
                 // Compute diff and show highlights
-                let hunks = MarkdownRenderer.lineDiff(old: oldContent, new: newContent)
-                self.diffHunks = MarkdownRenderer.renderHunkText(hunks: hunks)
+                self.diffOldHTML = MarkdownRenderer.renderToHTML(oldContent)
+                self.diffNewHTML = MarkdownRenderer.renderToHTML(newContent)
                 self.showDiffHighlights = true
                 self.applyDiffTrigger += 1
-                self.showDiffToast()
+                self.showDiffToast(oldContent: oldContent, newContent: newContent)
             }
         }
         fileWatcher?.start()

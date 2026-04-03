@@ -57,6 +57,10 @@ enum HTMLBuilder {
         if !highlightJS.isEmpty {
             controller.addUserScript(WKUserScript(source: highlightJS, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
         }
+        let htmlDiffJS = cachedResource("html-diff", type: "js")
+        if !htmlDiffJS.isEmpty {
+            controller.addUserScript(WKUserScript(source: htmlDiffJS, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
+        }
         controller.addUserScript(WKUserScript(source: postProcessScript, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
 
         // Note: loadImage message handler is added per-webview in MarkdownWebView

@@ -32,7 +32,8 @@ struct MarkdownWebView: NSViewRepresentable {
     let copyRichTextTrigger: Int
     let tocScrollTarget: String
     let scrollToTopTrigger: Int
-    let diffHunks: [MarkdownRenderer.DiffHunk]
+    let diffOldHTML: String
+    let diffNewHTML: String
     let applyDiffTrigger: Int
     let clearDiffTrigger: Int
     let scrollToDiffTrigger: Int
@@ -377,33 +378,18 @@ struct MarkdownWebView: NSViewRepresentable {
             }
         }
 
-        // Clear diff highlights
+        // Clear diff highlights — re-render current markdown
         if context.coordinator.lastClearDiffTrigger != clearDiffTrigger {
             context.coordinator.lastClearDiffTrigger = clearDiffTrigger
-            let js = """
-            (function() {
-                // Rejoin split code blocks
-                document.querySelectorAll('.mods-diff-el-top').forEach(function(top) {
-                    var diff = top.nextElementSibling;
-                    var bottom = diff ? diff.nextElementSibling : null;
-                    if (!diff || !diff.classList.contains('mods-diff-block')) return;
-                    if (!bottom || !bottom.classList.contains('mods-diff-el-bottom')) return;
-                    var codeTop = top.querySelector('code');
-                    var codeBottom = bottom.querySelector('code');
-                    if (codeTop && codeBottom) {
-                        codeTop.innerHTML = codeTop.innerHTML + '\\n' + codeBottom.innerHTML;
-                    } else {
-                        while (bottom.firstChild) top.appendChild(bottom.firstChild);
-                    }
-                    top.classList.remove('mods-diff-el-top');
-                    diff.remove();
-                    bottom.remove();
-                });
-                // Remove standalone diff blocks (for p, h*)
-                document.querySelectorAll('.mods-diff-block').forEach(function(el) { el.remove(); });
-            })();
-            """
-            webView.evaluateJavaScript(js)
+            let currentMarkdown = markdown
+            context.coordinator.renderTask?.cancel()
+            context.coordinator.renderTask = Task.detached(priority: .userInitiated) {
+                let bodyHTML = MarkdownRenderer.renderToHTML(currentMarkdown)
+                let postLoadJS = HTMLBuilder.conditionalJS(for: bodyHTML)
+                await MainActor.run {
+                    self.updateContentViaJS(webView: webView, bodyHTML: bodyHTML, postLoadJS: postLoadJS)
+                }
+            }
         }
 
         // Scroll to next diff
@@ -412,7 +398,7 @@ struct MarkdownWebView: NSViewRepresentable {
             let idx = context.coordinator.currentDiffIndex
             let js = """
             (function() {
-                var allDiffs = Array.from(document.querySelectorAll('.mods-diff-block'));
+                var allDiffs = Array.from(document.querySelectorAll('ins, del'));
                 if (allDiffs.length === 0) return -1;
                 var idx = \(idx) % allDiffs.length;
                 allDiffs[idx].scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -428,193 +414,21 @@ struct MarkdownWebView: NSViewRepresentable {
     }
 
     private func applyDiffHighlights(webView: WKWebView) {
-        guard !diffHunks.isEmpty else { return }
-        var hunksJSON: [String] = []
-        for hunk in diffHunks {
-            let removedRendered = HTMLBuilder.jsonEncode(hunk.removedHTML)
-            let addedRendered = HTMLBuilder.jsonEncode(hunk.addedHTML)
-            // Anchor text: stripped text from first meaningful added line for DOM search
-            let anchor = hunk.addedLines.first(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }) ?? ""
-            let stripped = MarkdownRenderer.renderLinesToText([anchor]).first ?? ""
-            let anchorJSON = HTMLBuilder.jsonEncode(stripped)
-            hunksJSON.append("{removed:\(removedRendered),added:\(addedRendered),anchor:\(anchorJSON)}")
-        }
+        guard !diffOldHTML.isEmpty, !diffNewHTML.isEmpty else { return }
+        let oldEncoded = HTMLBuilder.jsonEncode(diffOldHTML)
+        let newEncoded = HTMLBuilder.jsonEncode(diffNewHTML)
+        let postLoadJS = HTMLBuilder.conditionalJS(for: diffNewHTML)
         let js = """
         (function() {
-            var hunks = [\(hunksJSON.joined(separator: ","))];
-            var content = document.getElementById('content');
-            if (!content) return;
-
-            // Find the DOM element containing the anchor text
-            function findTarget(anchor) {
-                if (!anchor) return null;
-                var els = content.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, tr, td, th, pre, blockquote');
-                // Exact match
-                for (var i = 0; i < els.length; i++) {
-                    if (els[i].textContent.trim().indexOf(anchor) !== -1) {
-                        var el = els[i];
-                        if (el.tagName === 'TD' || el.tagName === 'TH') el = el.closest('tr') || el;
-                        return el;
-                    }
-                }
-                // Word-based match: all words must be present
-                var words = anchor.split(/[\\s|,]+/).filter(function(w) { return w.length > 1; });
-                if (words.length > 0) {
-                    for (var i = 0; i < els.length; i++) {
-                        var t = els[i].textContent;
-                        if (words.every(function(w) { return t.indexOf(w) !== -1; })) {
-                            var el = els[i];
-                            if (el.tagName === 'TD' || el.tagName === 'TH') el = el.closest('tr') || el;
-                            return el;
-                        }
-                    }
-                }
-                return null;
-            }
-
-            // Build diff block with +/- lines
-            function buildDiffBlock(hunk) {
-                var db = document.createElement('div');
-                db.className = 'mods-diff-block mods-diff-inline';
-                hunk.removed.split('\\n').filter(function(l){return l.trim();}).forEach(function(line) {
-                    var d = document.createElement('div');
-                    d.className = 'mods-diff-line mods-diff-del';
-                    d.textContent = '\\u2212 ' + line;
-                    db.appendChild(d);
-                });
-                hunk.added.split('\\n').filter(function(l){return l.trim();}).forEach(function(line) {
-                    var d = document.createElement('div');
-                    d.className = 'mods-diff-line mods-diff-add';
-                    d.textContent = '+ ' + line;
-                    db.appendChild(d);
-                });
-                return db.hasChildNodes() ? db : null;
-            }
-
-            // Split a container (ul/ol/blockquote) at a child index
-            function splitContainer(parent, childIdx, diffBlock) {
-                var topEl = parent.cloneNode(false);
-                var bottomEl = parent.cloneNode(false);
-                var items = Array.from(parent.children);
-                for (var i = 0; i < items.length; i++) {
-                    if (i < childIdx) topEl.appendChild(items[i].cloneNode(true));
-                    else bottomEl.appendChild(items[i].cloneNode(true));
-                }
-                topEl.classList.add('mods-diff-el-top');
-                bottomEl.classList.add('mods-diff-el-bottom');
-                parent.parentNode.insertBefore(topEl, parent);
-                parent.parentNode.insertBefore(diffBlock, parent);
-                parent.parentNode.insertBefore(bottomEl, parent);
-                parent.remove();
-            }
-
-            // Split a <pre> at a line index
-            function splitCodeBlock(pre, anchor, diffBlock) {
-                var code = pre.querySelector('code');
-                if (!code) return false;
-                var codeHTML = code.innerHTML;
-                var codeLines = codeHTML.split('\\n');
-                var plainLines = (code.textContent||'').split('\\n');
-                var matchIdx = -1;
-                for (var i = 0; i < plainLines.length; i++) {
-                    if (anchor && plainLines[i].trim().indexOf(anchor) !== -1) { matchIdx = i; break; }
-                }
-                if (matchIdx < 0) return false;
-                var lang = code.className || '';
-                var preBefore = document.createElement('pre');
-                var codeBefore = document.createElement('code');
-                codeBefore.className = lang;
-                codeBefore.innerHTML = codeLines.slice(0, matchIdx).join('\\n');
-                preBefore.appendChild(codeBefore);
-                preBefore.classList.add('mods-diff-el-top');
-                var preAfter = document.createElement('pre');
-                var codeAfter = document.createElement('code');
-                codeAfter.className = lang;
-                codeAfter.innerHTML = codeLines.slice(matchIdx).join('\\n');
-                preAfter.appendChild(codeAfter);
-                preAfter.classList.add('mods-diff-el-bottom');
-                pre.parentNode.insertBefore(preBefore, pre);
-                pre.parentNode.insertBefore(diffBlock, pre);
-                pre.parentNode.insertBefore(preAfter, pre);
-                pre.remove();
-                return true;
-            }
-
-            hunks.forEach(function(hunk) {
-                var target = findTarget(hunk.anchor);
-                if (!target) return;
-                var tag = target.tagName;
-                var parent = target.parentElement;
-                var parentTag = parent ? parent.tagName : '';
-
-                // Match indent of target element
-                var diffBlock = buildDiffBlock(hunk);
-                if (!diffBlock) return;
-                var contentRect = content.getBoundingClientRect();
-                var targetRect = target.getBoundingClientRect();
-                var indent = targetRect.left - contentRect.left;
-                if (indent > 0) diffBlock.style.paddingLeft = indent + 'px';
-
-                // Table row: split table at the target <tr>, insert full-width diff block between
-                if (tag === 'TR') {
-                    var table = target.closest('table');
-                    if (!table) return;
-                    diffBlock.style.paddingLeft = '0';
-                    var rows = Array.from(table.querySelectorAll('tr'));
-                    var trIdx = rows.indexOf(target);
-                    if (trIdx <= 0) { table.parentNode.insertBefore(diffBlock, table); return; }
-                    // Clone table structure for top and bottom halves
-                    var topTable = table.cloneNode(false);
-                    var bottomTable = table.cloneNode(false);
-                    var topBody = document.createElement('tbody');
-                    var bottomBody = document.createElement('tbody');
-                    // Copy thead to both halves
-                    var thead = table.querySelector('thead');
-                    if (thead) {
-                        topTable.appendChild(thead.cloneNode(true));
-                        bottomTable.appendChild(thead.cloneNode(true));
-                    }
-                    for (var ri = 0; ri < rows.length; ri++) {
-                        if (rows[ri].parentElement && rows[ri].parentElement.tagName === 'THEAD') continue;
-                        if (ri < trIdx) topBody.appendChild(rows[ri].cloneNode(true));
-                        else bottomBody.appendChild(rows[ri].cloneNode(true));
-                    }
-                    topTable.appendChild(topBody);
-                    bottomTable.appendChild(bottomBody);
-                    topTable.classList.add('mods-diff-el-top');
-                    bottomTable.classList.add('mods-diff-el-bottom');
-                    table.parentNode.insertBefore(topTable, table);
-                    table.parentNode.insertBefore(diffBlock, table);
-                    table.parentNode.insertBefore(bottomTable, table);
-                    table.remove();
-                    return;
-                }
-
-                // List item: split parent <ul>/<ol> at the target <li>
-                if (tag === 'LI' && (parentTag === 'UL' || parentTag === 'OL')) {
-                    var idx = Array.from(parent.children).indexOf(target);
-                    if (idx > 0) { splitContainer(parent, idx, diffBlock); return; }
-                }
-
-                // Code block: split <pre> at the matching line
-                if (tag === 'PRE') {
-                    if (splitCodeBlock(target, hunk.anchor, diffBlock)) return;
-                }
-                // Inside a code block (target found inside <pre>)
-                var pre = target.closest ? target.closest('pre') : null;
-                if (pre) {
-                    if (splitCodeBlock(pre, hunk.anchor, diffBlock)) return;
-                }
-
-                // Blockquote: split at child
-                if (tag !== 'BLOCKQUOTE' && parentTag === 'BLOCKQUOTE') {
-                    var idx = Array.from(parent.children).indexOf(target);
-                    if (idx > 0) { splitContainer(parent, idx, diffBlock); return; }
-                }
-
-                // Simple elements (p, h*, standalone blockquote): insert before
-                target.parentNode.insertBefore(diffBlock, target);
-            });
+            var savedScrollY = window.scrollY;
+            var oldHTML = \(oldEncoded);
+            var newHTML = \(newEncoded);
+            var merged = window.__modsHtmlDiff(oldHTML, newHTML);
+            document.getElementById('content').innerHTML = merged;
+            \(postLoadJS)
+            // Disable checkboxes (read-only viewer)
+            document.querySelectorAll('input[type="checkbox"]').forEach(function(cb) { cb.disabled = true; });
+            window.scrollTo(0, savedScrollY);
         })();
         """
         webView.evaluateJavaScript(js)
