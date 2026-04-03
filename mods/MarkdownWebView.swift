@@ -378,7 +378,7 @@ struct MarkdownWebView: NSViewRepresentable {
             }
         }
 
-        // Clear diff highlights — re-render current markdown
+        // Clear diff highlights — re-render current markdown, preserving scroll position
         if context.coordinator.lastClearDiffTrigger != clearDiffTrigger {
             context.coordinator.lastClearDiffTrigger = clearDiffTrigger
             let currentMarkdown = markdown
@@ -387,7 +387,16 @@ struct MarkdownWebView: NSViewRepresentable {
                 let bodyHTML = MarkdownRenderer.renderToHTML(currentMarkdown)
                 let postLoadJS = HTMLBuilder.conditionalJS(for: bodyHTML)
                 await MainActor.run {
-                    self.updateContentViaJS(webView: webView, bodyHTML: bodyHTML, postLoadJS: postLoadJS)
+                    let js = """
+                    (function() {
+                        var savedY = window.scrollY;
+                        document.getElementById('content').innerHTML = \(HTMLBuilder.jsonEncode(bodyHTML));
+                        \(postLoadJS)
+                        document.querySelectorAll('input[type="checkbox"]').forEach(function(cb) { cb.disabled = true; });
+                        window.scrollTo(0, savedY);
+                    })();
+                    """
+                    webView.evaluateJavaScript(js)
                 }
             }
         }
