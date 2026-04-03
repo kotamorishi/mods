@@ -171,15 +171,15 @@ del { text-decoration: line-through; }
     .mods-fm-key { color: #79c0ff; }
 }
 
-/* HTML-level diff highlights (only diff-generated, not content strikethrough) */
-ins.mods-diff {
+/* HTML-level diff highlights (span-based to avoid collision with content <del>/<ins>) */
+.mods-diff-ins {
     background-color: #dafbe1;
     color: #116329;
     text-decoration: none;
     padding: 1px 2px;
     border-radius: 3px;
 }
-del.mods-diff {
+.mods-diff-del {
     background-color: #ffebe9;
     color: #82071e;
     text-decoration: line-through;
@@ -187,8 +187,8 @@ del.mods-diff {
     border-radius: 3px;
 }
 @media (prefers-color-scheme: dark) {
-    ins.mods-diff { background-color: rgba(63, 185, 80, 0.15); color: #3fb950; }
-    del.mods-diff { background-color: rgba(248, 81, 73, 0.15); color: #f85149; }
+    .mods-diff-ins { background-color: rgba(63, 185, 80, 0.15); color: #3fb950; }
+    .mods-diff-del { background-color: rgba(248, 81, 73, 0.15); color: #f85149; }
 }
 
 .footnotes { font-size: 85%; color: #656d76; border-top: 1px solid #d0d7de; margin-top: 24px; padding-top: 16px; }

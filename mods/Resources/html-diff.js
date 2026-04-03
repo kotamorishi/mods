@@ -243,28 +243,30 @@
 
     // --- Phase 4: Render ---
 
-    // Wrap non-tag tokens in the given tag (ins or del) with diff marker class and region ID
-    function wrapTokens(tokens, start, end, tagName, regionId) {
+    // Wrap non-tag tokens in a <span> with diff type class and region ID
+    // Uses <span> instead of <ins>/<del> to avoid collision with content HTML tags
+    function wrapTokens(tokens, start, end, diffType, regionId) {
+        var cls = diffType === 'del' ? 'mods-diff mods-diff-del' : 'mods-diff mods-diff-ins';
         var out = '';
         var inWrap = false;
         for (var i = start; i < end; i++) {
             var token = tokens[i];
             if (isTag(token)) {
                 if (inWrap) {
-                    out += '</' + tagName + '>';
+                    out += '</span>';
                     inWrap = false;
                 }
                 out += token;
             } else {
                 if (!inWrap) {
-                    out += '<' + tagName + ' class="mods-diff" data-diff-region="' + regionId + '">';
+                    out += '<span class="' + cls + '" data-diff-region="' + regionId + '">';
                     inWrap = true;
                 }
                 out += token;
             }
         }
         if (inWrap) {
-            out += '</' + tagName + '>';
+            out += '</span>';
         }
         return out;
     }
