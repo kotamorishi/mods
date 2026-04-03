@@ -91,7 +91,11 @@ enum DirectoryBookmarks {
 
     /// Save a security-scoped bookmark for the parent directory of a file URL.
     static func saveBookmark(for fileURL: URL) {
-        let dir = fileURL.deletingLastPathComponent()
+        saveBookmark(forDirectory: fileURL.deletingLastPathComponent())
+    }
+
+    /// Save a security-scoped bookmark for a directory URL (from NSOpenPanel).
+    static func saveBookmark(forDirectory dir: URL) {
         guard let data = try? dir.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil) else { return }
         var bookmarks = loadAllBookmarks()
         bookmarks[dir.path] = data
@@ -118,6 +122,12 @@ enum DirectoryBookmarks {
             return url
         }
         return nil
+    }
+
+    /// Check if a saved bookmark exists for the parent directory of a file URL.
+    static func hasBookmark(for fileURL: URL) -> Bool {
+        let dirPath = fileURL.deletingLastPathComponent().path
+        return loadAllBookmarks()[dirPath] != nil
     }
 
     static func stopAccessing(_ url: URL?) {
