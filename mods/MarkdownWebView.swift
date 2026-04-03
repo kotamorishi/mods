@@ -252,8 +252,10 @@ struct MarkdownWebView: NSViewRepresentable {
             context.coordinator.currentMarkdown = markdown
             let currentMarkdown = markdown
             let restoreHighlights = !activeSearchTerms.isEmpty
+            // Skip normal content update when diff will be applied — avoid double render
+            let diffPending = context.coordinator.lastApplyDiffTrigger != applyDiffTrigger
 
-            if context.coordinator.isInitialLoadDone && !currentMarkdown.isEmpty {
+            if context.coordinator.isInitialLoadDone && !currentMarkdown.isEmpty && !diffPending {
                 context.coordinator.renderTask?.cancel()
                 context.coordinator.renderTask = Task.detached(priority: .userInitiated) {
                     let bodyHTML = MarkdownRenderer.renderToHTML(currentMarkdown)
@@ -262,7 +264,7 @@ struct MarkdownWebView: NSViewRepresentable {
                         self.updateContentViaJS(webView: webView, bodyHTML: bodyHTML, postLoadJS: postLoadJS, restoreHighlights: restoreHighlights)
                     }
                 }
-            } else if !currentMarkdown.isEmpty {
+            } else if !currentMarkdown.isEmpty && !context.coordinator.isInitialLoadDone {
                 // First real content load — synchronous for immediate display
                 let bodyHTML = MarkdownRenderer.renderToHTML(currentMarkdown)
                 let html = HTMLBuilder.buildHTML(bodyHTML: bodyHTML)
@@ -372,10 +374,7 @@ struct MarkdownWebView: NSViewRepresentable {
         // Apply diff highlights
         if context.coordinator.lastApplyDiffTrigger != applyDiffTrigger {
             context.coordinator.lastApplyDiffTrigger = applyDiffTrigger
-            // Delay to let content render first
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                self.applyDiffHighlights(webView: webView)
-            }
+            self.applyDiffHighlights(webView: webView)
         }
 
         // Clear diff highlights — unwrap diff spans in-place (no re-render)
@@ -430,14 +429,17 @@ struct MarkdownWebView: NSViewRepresentable {
         let js = """
         (function() {
             var savedScrollY = window.scrollY;
+            var content = document.getElementById('content');
+            // Freeze display to prevent flicker during innerHTML swap
+            content.style.visibility = 'hidden';
             var oldHTML = \(oldEncoded);
             var newHTML = \(newEncoded);
             var merged = window.__modsHtmlDiff(oldHTML, newHTML);
-            document.getElementById('content').innerHTML = merged;
+            content.innerHTML = merged;
             \(postLoadJS)
-            // Disable checkboxes (read-only viewer)
             document.querySelectorAll('input[type="checkbox"]').forEach(function(cb) { cb.disabled = true; });
             window.scrollTo(0, savedScrollY);
+            content.style.visibility = '';
         })();
         """
         webView.evaluateJavaScript(js)
