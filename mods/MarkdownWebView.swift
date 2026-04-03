@@ -398,7 +398,7 @@ struct MarkdownWebView: NSViewRepresentable {
             let idx = context.coordinator.currentDiffIndex
             let js = """
             (function() {
-                var allDiffs = Array.from(document.querySelectorAll('ins, del'));
+                var allDiffs = Array.from(document.querySelectorAll('.mods-diff'));
                 if (allDiffs.length === 0) return -1;
                 var idx = \(idx) % allDiffs.length;
                 allDiffs[idx].scrollIntoView({ behavior: 'smooth', block: 'center' });

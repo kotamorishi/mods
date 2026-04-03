@@ -243,7 +243,7 @@
 
     // --- Phase 4: Render ---
 
-    // Wrap non-tag tokens in the given tag (ins or del)
+    // Wrap non-tag tokens in the given tag (ins or del) with diff marker class
     function wrapTokens(tokens, start, end, tagName) {
         var out = '';
         var inWrap = false;
@@ -257,7 +257,7 @@
                 out += token;
             } else {
                 if (!inWrap) {
-                    out += '<' + tagName + '>';
+                    out += '<' + tagName + ' class="mods-diff">';
                     inWrap = true;
                 }
                 out += token;
