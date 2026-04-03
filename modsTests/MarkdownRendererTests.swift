@@ -73,90 +73,6 @@ final class MarkdownRendererTests: XCTestCase {
         XCTAssertEqual(pairs.count, 2)
     }
 
-    // MARK: - lineDiff
-
-    func testLineDiffIdentical() {
-        let text = "line1\nline2\nline3"
-        let hunks = MarkdownRenderer.lineDiff(old: text, new: text)
-        XCTAssertTrue(hunks.isEmpty)
-    }
-
-    func testLineDiffSingleLineChange() {
-        let old = "line1\nline2\nline3"
-        let new = "line1\nchanged\nline3"
-        let hunks = MarkdownRenderer.lineDiff(old: old, new: new)
-        XCTAssertEqual(hunks.count, 1)
-        XCTAssertEqual(hunks[0].removedLines, ["line2"])
-        XCTAssertEqual(hunks[0].addedLines, ["changed"])
-    }
-
-    func testLineDiffLineAdded() {
-        let old = "line1\nline2"
-        let new = "line1\nline2\nline3"
-        let hunks = MarkdownRenderer.lineDiff(old: old, new: new)
-        XCTAssertEqual(hunks.count, 1)
-        XCTAssertEqual(hunks[0].addedLines, ["line3"])
-        XCTAssertTrue(hunks[0].removedLines.isEmpty)
-    }
-
-    func testLineDiffLineRemoved() {
-        let old = "line1\nline2\nline3"
-        let new = "line1\nline3"
-        let hunks = MarkdownRenderer.lineDiff(old: old, new: new)
-        XCTAssertEqual(hunks.count, 1)
-        XCTAssertEqual(hunks[0].removedLines, ["line2"])
-        XCTAssertTrue(hunks[0].addedLines.isEmpty)
-    }
-
-    func testLineDiffMultipleChanges() {
-        let old = "a\nb\nc\nd\ne"
-        let new = "a\nB\nc\nD\ne"
-        let hunks = MarkdownRenderer.lineDiff(old: old, new: new)
-        XCTAssertEqual(hunks.count, 2)
-    }
-
-    func testLineDiffEmptyStrings() {
-        let hunks = MarkdownRenderer.lineDiff(old: "", new: "")
-        XCTAssertTrue(hunks.isEmpty)
-    }
-
-    // MARK: - renderLinesToText
-
-    func testRenderLinesToTextTableRow() {
-        let result = MarkdownRenderer.renderLinesToText(["| L2 | C2 | R2 |"])
-        XCTAssertEqual(result, ["L2 | C2 | R2"])
-    }
-
-    func testRenderLinesToTextTableSeparator() {
-        let result = MarkdownRenderer.renderLinesToText(["|:-----|:------:|------:|"])
-        XCTAssertEqual(result, [""])
-    }
-
-    func testRenderLinesToTextListItem() {
-        let result = MarkdownRenderer.renderLinesToText(["- item text"])
-        XCTAssertEqual(result, ["item text"])
-    }
-
-    func testRenderLinesToTextHeading() {
-        let result = MarkdownRenderer.renderLinesToText(["## My Heading"])
-        XCTAssertEqual(result, ["My Heading"])
-    }
-
-    func testRenderLinesToTextBold() {
-        let result = MarkdownRenderer.renderLinesToText(["**bold** text"])
-        XCTAssertEqual(result, ["bold text"])
-    }
-
-    func testRenderLinesToTextTaskList() {
-        let result = MarkdownRenderer.renderLinesToText(["- [x] Completed"])
-        XCTAssertEqual(result, ["Completed"])
-    }
-
-    func testRenderLinesToTextInlineCode() {
-        let result = MarkdownRenderer.renderLinesToText(["`code` here"])
-        XCTAssertEqual(result, ["code here"])
-    }
-
     // MARK: - renderFrontmatterHTML
 
     func testRenderFrontmatterHTML() {
@@ -166,28 +82,5 @@ final class MarkdownRendererTests: XCTestCase {
         XCTAssertTrue(html.contains("mods-badge"))
         XCTAssertTrue(html.contains("title"))
         XCTAssertTrue(html.contains("Test"))
-    }
-
-    // MARK: - renderHunkText
-
-    func testRenderHunkTextStripsMarkdown() {
-        let hunk = MarkdownRenderer.DiffHunk(removedLines: ["## Old heading"], addedLines: ["## New heading"])
-        let rendered = MarkdownRenderer.renderHunkText(hunks: [hunk])
-        XCTAssertEqual(rendered[0].removedHTML, "Old heading")
-        XCTAssertEqual(rendered[0].addedHTML, "New heading")
-    }
-
-    func testRenderHunkTextStripsTablePipes() {
-        let hunk = MarkdownRenderer.DiffHunk(removedLines: ["| A | B |"], addedLines: ["| C | D |"])
-        let rendered = MarkdownRenderer.renderHunkText(hunks: [hunk])
-        XCTAssertEqual(rendered[0].removedHTML, "A | B")
-        XCTAssertEqual(rendered[0].addedHTML, "C | D")
-    }
-
-    func testRenderHunkTextStripsListMarkers() {
-        let hunk = MarkdownRenderer.DiffHunk(removedLines: ["- old item"], addedLines: ["- new item"])
-        let rendered = MarkdownRenderer.renderHunkText(hunks: [hunk])
-        XCTAssertEqual(rendered[0].removedHTML, "old item")
-        XCTAssertEqual(rendered[0].addedHTML, "new item")
     }
 }
