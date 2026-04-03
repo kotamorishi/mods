@@ -378,27 +378,20 @@ struct MarkdownWebView: NSViewRepresentable {
             }
         }
 
-        // Clear diff highlights — re-render current markdown, preserving scroll position
+        // Clear diff highlights — unwrap diff spans in-place (no re-render)
         if context.coordinator.lastClearDiffTrigger != clearDiffTrigger {
             context.coordinator.lastClearDiffTrigger = clearDiffTrigger
-            let currentMarkdown = markdown
-            context.coordinator.renderTask?.cancel()
-            context.coordinator.renderTask = Task.detached(priority: .userInitiated) {
-                let bodyHTML = MarkdownRenderer.renderToHTML(currentMarkdown)
-                let postLoadJS = HTMLBuilder.conditionalJS(for: bodyHTML)
-                await MainActor.run {
-                    let js = """
-                    (function() {
-                        var savedY = window.scrollY;
-                        document.getElementById('content').innerHTML = \(HTMLBuilder.jsonEncode(bodyHTML));
-                        \(postLoadJS)
-                        document.querySelectorAll('input[type="checkbox"]').forEach(function(cb) { cb.disabled = true; });
-                        window.scrollTo(0, savedY);
-                    })();
-                    """
-                    webView.evaluateJavaScript(js)
-                }
-            }
+            let js = """
+            (function() {
+                document.querySelectorAll('.mods-diff-del').forEach(function(el) { el.remove(); });
+                document.querySelectorAll('.mods-diff-ins').forEach(function(el) {
+                    var parent = el.parentNode;
+                    while (el.firstChild) parent.insertBefore(el.firstChild, el);
+                    parent.removeChild(el);
+                });
+            })();
+            """
+            webView.evaluateJavaScript(js)
         }
 
         // Scroll to next diff
