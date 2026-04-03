@@ -243,8 +243,8 @@
 
     // --- Phase 4: Render ---
 
-    // Wrap non-tag tokens in the given tag (ins or del) with diff marker class
-    function wrapTokens(tokens, start, end, tagName) {
+    // Wrap non-tag tokens in the given tag (ins or del) with diff marker class and region ID
+    function wrapTokens(tokens, start, end, tagName, regionId) {
         var out = '';
         var inWrap = false;
         for (var i = start; i < end; i++) {
@@ -257,7 +257,7 @@
                 out += token;
             } else {
                 if (!inWrap) {
-                    out += '<' + tagName + ' class="mods-diff">';
+                    out += '<' + tagName + ' class="mods-diff" data-diff-region="' + regionId + '">';
                     inWrap = true;
                 }
                 out += token;
@@ -271,6 +271,7 @@
 
     function renderOperations(beforeTokens, afterTokens, operations) {
         var html = '';
+        var regionId = 0;
         for (var i = 0; i < operations.length; i++) {
             var op = operations[i];
             switch (op.action) {
@@ -280,14 +281,17 @@
                     }
                     break;
                 case 'insert':
-                    html += wrapTokens(afterTokens, op.afterStart, op.afterEnd, 'ins');
+                    html += wrapTokens(afterTokens, op.afterStart, op.afterEnd, 'ins', regionId);
+                    regionId++;
                     break;
                 case 'delete':
-                    html += wrapTokens(beforeTokens, op.beforeStart, op.beforeEnd, 'del');
+                    html += wrapTokens(beforeTokens, op.beforeStart, op.beforeEnd, 'del', regionId);
+                    regionId++;
                     break;
                 case 'replace':
-                    html += wrapTokens(beforeTokens, op.beforeStart, op.beforeEnd, 'del');
-                    html += wrapTokens(afterTokens, op.afterStart, op.afterEnd, 'ins');
+                    html += wrapTokens(beforeTokens, op.beforeStart, op.beforeEnd, 'del', regionId);
+                    html += wrapTokens(afterTokens, op.afterStart, op.afterEnd, 'ins', regionId);
+                    regionId++;
                     break;
             }
         }

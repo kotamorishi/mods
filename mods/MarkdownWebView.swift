@@ -398,11 +398,18 @@ struct MarkdownWebView: NSViewRepresentable {
             let idx = context.coordinator.currentDiffIndex
             let js = """
             (function() {
-                var allDiffs = Array.from(document.querySelectorAll('.mods-diff'));
+                var allDiffs = Array.from(document.querySelectorAll('.mods-diff[data-diff-region]'));
                 if (allDiffs.length === 0) return -1;
-                var idx = \(idx) % allDiffs.length;
-                allDiffs[idx].scrollIntoView({ behavior: 'smooth', block: 'center' });
-                return allDiffs.length;
+                var seen = {};
+                var regions = [];
+                for (var i = 0; i < allDiffs.length; i++) {
+                    var rid = allDiffs[i].getAttribute('data-diff-region');
+                    if (!seen[rid]) { seen[rid] = true; regions.push(allDiffs[i]); }
+                }
+                if (regions.length === 0) return -1;
+                var idx = \(idx) % regions.length;
+                regions[idx].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return regions.length;
             })();
             """
             webView.evaluateJavaScript(js) { result, _ in
